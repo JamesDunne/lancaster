@@ -11,6 +11,8 @@ import (
 )
 
 func main() {
+	netInterfaceName := "LAN"
+	netInterface := (*net.Interface)(nil)
 	address := ""
 	datagramSize := 1500
 
@@ -25,8 +27,14 @@ func main() {
 
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
+			Name:        "interface,i",
+			Value:       "LAN",
+			Usage:       "Interface name to bind to",
+			Destination: &netInterfaceName,
+		},
+		cli.StringFlag{
 			Name:        "group,g",
-			Value:       "224.0.0.1:1360",
+			Value:       "236.0.0.100:1360",
 			Usage:       "UDP multicast group for transfers",
 			Destination: &address,
 		},
@@ -35,6 +43,45 @@ func main() {
 			Value:       1500,
 			Destination: &datagramSize,
 		},
+	}
+	app.Before = func(c *cli.Context) error {
+		var err error
+		netInterface, err = net.InterfaceByName(netInterfaceName)
+		if err != nil {
+			return err
+		}
+		return nil
+
+		// Example code to enumerate network interfaces:
+		//		interfaces, err := net.Interfaces()
+		//		if err != nil {
+		//			return err
+		//		}
+		//		for _, i := range interfaces {
+		//			if i.Flags&net.FlagMulticast == 0 {
+		//				continue
+		//			}
+		//			if i.Name == netInterfaceName {
+		//				netInterface = net.InterfaceByIndex(i.Index)
+		//				break
+		//			}
+		//			fmt.Printf("%s\n", i.Name)
+		//			addrs, err := i.Addrs()
+		//			if err != nil {
+		//				continue
+		//			}
+		//			for _, a := range addrs {
+		//				fmt.Printf("  %s\n", a)
+		//			}
+		//			addrs, err = i.MulticastAddrs()
+		//			if err != nil {
+		//				continue
+		//			}
+		//			for _, a := range addrs {
+		//				fmt.Printf("  MC %s\n", a)
+		//			}
+		//		}
+		//		return nil
 	}
 	app.Commands = []cli.Command{
 		cli.Command{
@@ -48,7 +95,7 @@ func main() {
 					return err
 				}
 
-				conn, err := net.ListenMulticastUDP("udp", nil, udpAddr)
+				conn, err := net.ListenMulticastUDP("udp", netInterface, udpAddr)
 				if err != nil {
 					return err
 				}
