@@ -5,14 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"syscall"
 	"time"
 
 	"github.com/urfave/cli"
 )
 
 func main() {
-	netInterfaceName := "LAN"
+	netInterfaceName := ""
 	netInterface := (*net.Interface)(nil)
 	address := ""
 	datagramSize := 1500
@@ -31,7 +30,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:        "interface,i",
-			Value:       "LAN",
+			Value:       "",
 			Usage:       "Interface name to bind to",
 			Destination: &netInterfaceName,
 		},
@@ -53,7 +52,6 @@ func main() {
 		},
 		cli.BoolFlag{
 			Name:        "loopback enable,l",
-			Value:       true,
 			Destination: &loopbackEnable,
 		},
 	}
@@ -74,37 +72,31 @@ func main() {
 			Aliases: []string{"d"},
 			Usage:   "download files from a multicast group locally",
 			Action: func(c *cli.Context) error {
+				m, err := NewMulticastListener(address, netInterface)
+				if err != nil {
+					return err
+				}
+
+				m.SetDatagramSize(datagramSize)
+				if err != nil {
+					return err
+				}
+				m.SetTTL(ttl)
+				if err != nil {
+					return err
+				}
+				m.SetLoopback(loopbackEnable)
+				if err != nil {
+					return err
+				}
 				//local := c.Args().First()
-				udpAddr, err := net.ResolveUDPAddr("udp", address)
-				if err != nil {
-					return err
-				}
 
-				conn, err := net.ListenMulticastUDP("udp", netInterface, udpAddr)
-				if err != nil {
-					return err
-				}
-
-				// Set advanced options for TTL and loopback:
-				sysconn, err := conn.SyscallConn()
-				if err != nil {
-					return err
-				}
-				sysconn.Control(func(fd uintptr) {
-					lp := 0
-					if loopbackEnable {
-						lp = -1
-					}
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, lp)
-				})
-				conn.SetReadBuffer(datagramSize)
 				buf := make([]byte, datagramSize)
 
 				// Read UDP messages from multicast:
 				for {
 					// TODO: use second parameter *net.UDPAddr to authenticate source?
-					n, _, err := conn.ReadFromUDP(buf)
+					n, _, err := m.conn.ReadFromUDP(buf)
 					if err != nil {
 						return err
 					}
@@ -112,7 +104,7 @@ func main() {
 					fmt.Printf("%s", hex.Dump(msg))
 				}
 
-				err = conn.Close()
+				err = m.conn.Close()
 				return err
 			},
 		},
@@ -122,30 +114,28 @@ func main() {
 			Usage:   "server files to a multicast group",
 			Action: func(c *cli.Context) error {
 				//local := c.Args().First()
-				udpAddr, err := net.ResolveUDPAddr("udp", address)
+				m, err := NewMulticastSender(address, netInterface)
 				if err != nil {
 					return err
 				}
 
-				conn, err := net.DialUDP("udp", nil, udpAddr)
+				m.SetDatagramSize(datagramSize)
 				if err != nil {
 					return err
 				}
-
-				sysconn, err := conn.SyscallConn()
+				m.SetTTL(ttl)
 				if err != nil {
 					return err
 				}
-				sysconn.Control(func(fd uintptr) {
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, 5)
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, -1)
-				})
-				conn.SetWriteBuffer(datagramSize)
+				m.SetLoopback(loopbackEnable)
+				if err != nil {
+					return err
+				}
 				msg := []byte("hello, world!\n")
 
 				// Write UDP messages to multicast:
 				for {
-					_, err := conn.Write(msg)
+					_, err := m.conn.Write(msg)
 					if err != nil {
 						return err
 					}
@@ -153,7 +143,7 @@ func main() {
 					time.Sleep(1 * time.Second)
 				}
 
-				err = conn.Close()
+				err = m.conn.Close()
 				return err
 			},
 		},
