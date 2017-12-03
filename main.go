@@ -16,6 +16,8 @@ func main() {
 	netInterface := (*net.Interface)(nil)
 	address := ""
 	datagramSize := 1500
+	ttl := 8
+	loopbackEnable := false
 
 	app := cli.NewApp()
 
@@ -44,45 +46,27 @@ func main() {
 			Value:       1500,
 			Destination: &datagramSize,
 		},
+		cli.IntFlag{
+			Name:        "ttl,t",
+			Value:       8,
+			Destination: &ttl,
+		},
+		cli.BoolFlag{
+			Name:        "loopback enable,l",
+			Value:       true,
+			Destination: &loopbackEnable,
+		},
 	}
 	app.Before = func(c *cli.Context) error {
-		var err error
-		netInterface, err = net.InterfaceByName(netInterfaceName)
-		if err != nil {
-			return err
+		// Find network interface by name:
+		if netInterfaceName != "" {
+			var err error
+			netInterface, err = net.InterfaceByName(netInterfaceName)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
-
-		// Example code to enumerate network interfaces:
-		//		interfaces, err := net.Interfaces()
-		//		if err != nil {
-		//			return err
-		//		}
-		//		for _, i := range interfaces {
-		//			if i.Flags&net.FlagMulticast == 0 {
-		//				continue
-		//			}
-		//			if i.Name == netInterfaceName {
-		//				netInterface = net.InterfaceByIndex(i.Index)
-		//				break
-		//			}
-		//			fmt.Printf("%s\n", i.Name)
-		//			addrs, err := i.Addrs()
-		//			if err != nil {
-		//				continue
-		//			}
-		//			for _, a := range addrs {
-		//				fmt.Printf("  %s\n", a)
-		//			}
-		//			addrs, err = i.MulticastAddrs()
-		//			if err != nil {
-		//				continue
-		//			}
-		//			for _, a := range addrs {
-		//				fmt.Printf("  MC %s\n", a)
-		//			}
-		//		}
-		//		return nil
 	}
 	app.Commands = []cli.Command{
 		cli.Command{
@@ -101,13 +85,18 @@ func main() {
 					return err
 				}
 
+				// Set advanced options for TTL and loopback:
 				sysconn, err := conn.SyscallConn()
 				if err != nil {
 					return err
 				}
 				sysconn.Control(func(fd uintptr) {
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, 5)
-					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, -1)
+					lp := 0
+					if loopbackEnable {
+						lp = -1
+					}
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, lp)
 				})
 				conn.SetReadBuffer(datagramSize)
 				buf := make([]byte, datagramSize)
