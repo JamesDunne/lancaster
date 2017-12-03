@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"syscall"
 	"time"
 
 	"github.com/urfave/cli"
@@ -100,6 +101,14 @@ func main() {
 					return err
 				}
 
+				sysconn, err := conn.SyscallConn()
+				if err != nil {
+					return err
+				}
+				sysconn.Control(func(fd uintptr) {
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, 5)
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, -1)
+				})
 				conn.SetReadBuffer(datagramSize)
 				buf := make([]byte, datagramSize)
 
@@ -134,6 +143,14 @@ func main() {
 					return err
 				}
 
+				sysconn, err := conn.SyscallConn()
+				if err != nil {
+					return err
+				}
+				sysconn.Control(func(fd uintptr) {
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, 5)
+					syscall.SetsockoptInt(syscall.Handle(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, -1)
+				})
 				conn.SetWriteBuffer(datagramSize)
 				msg := []byte("hello, world!\n")
 
