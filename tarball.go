@@ -28,7 +28,7 @@ type WriterAtCloser interface {
 type TarballFile struct {
 	Path string
 	Size int64
-	Mode int32
+	Mode os.FileMode
 }
 
 type tarballFile struct {
@@ -96,11 +96,11 @@ func (t *Tarball) Close() error {
 
 // io.WriterAt:
 func (t *Tarball) WriteAt(buf []byte, offset int64) (int, error) {
-	if offset < 0 || offset >= t.size {
-		return 0, ErrOutOfRange
-	}
 	if buf == nil {
 		return 0, ErrNilBuffer
+	}
+	if offset < 0 || offset >= t.size {
+		return 0, ErrOutOfRange
 	}
 
 	// Write to file(s):
@@ -111,8 +111,17 @@ func (t *Tarball) WriteAt(buf []byte, offset int64) (int, error) {
 			continue
 		}
 
-		// Create file if not existing:
+		// Create file if not already:
 		if tf.writer == nil {
+			// Try to mkdir all paths involved:
+			dir, _ := filepath.Split(tf.Path)
+			if dir != "" {
+				err := os.MkdirAll(dir, os.FileMode(tf.Mode))
+				if err != nil {
+					return 0, err
+				}
+			}
+
 			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, os.FileMode(tf.Mode))
 			if err != nil {
 				return 0, err
@@ -146,6 +155,61 @@ func (t *Tarball) WriteAt(buf []byte, offset int64) (int, error) {
 		}
 
 		// Keep iterating files until we have no more to write:
+		if len(remainder) == 0 {
+			break
+		}
+	}
+
+	return total, nil
+}
+
+// io.ReaderAt:
+func (t *Tarball) ReadAt(buf []byte, offset int64) (n int, err error) {
+	if buf == nil {
+		return 0, ErrNilBuffer
+	}
+	if offset < 0 || offset >= t.size {
+		return 0, ErrOutOfRange
+	}
+
+	// Read from file(s):
+	total := 0
+	remainder := buf[:]
+	for _, tf := range t.files {
+		if offset < tf.offset || offset >= tf.offset+tf.Size {
+			continue
+		}
+
+		// Open file if not already:
+		if tf.reader == nil {
+			f, err := os.Open(tf.Path)
+			if err != nil {
+				return 0, err
+			}
+
+			tf.reader = f
+		}
+
+		localOffset := offset - tf.offset
+
+		// Perform read:
+		p := remainder
+		if localOffset+int64(len(p)) > tf.Size {
+			p = remainder[:tf.Size-localOffset]
+		}
+		if len(p) > 0 {
+			// NOTE: we allow len(p) == 0 as a side effect in case that's useful.
+			n, err := tf.reader.ReadAt(p, localOffset)
+			if err != nil {
+				return 0, err
+			}
+
+			total += n
+			offset += int64(n)
+			remainder = remainder[n:]
+		}
+
+		// Keep iterating files until we have no more to read:
 		if len(remainder) == 0 {
 			break
 		}
