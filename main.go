@@ -119,7 +119,7 @@ func main() {
 		cli.Command{
 			Name:    "serve",
 			Aliases: []string{"s"},
-			Usage:   "server files to a multicast group",
+			Usage:   "serve files to a multicast group",
 			Action: func(c *cli.Context) error {
 				local := c.Args().First()
 				fmt.Printf("%s\n", local)
