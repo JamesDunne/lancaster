@@ -2,9 +2,7 @@
 package main
 
 import (
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"os"
 )
 
@@ -90,7 +88,6 @@ func (t *Tarball) WriteAt(buf []byte, offset int64) (int, error) {
 		if localOffset+int64(len(p)) > tf.Size {
 			p = remainder[:tf.Size-localOffset]
 		}
-		fmt.Fprintf(os.Stderr, "write('%s'): %s", tf.Path, hex.Dump(p))
 		if len(p) > 0 {
 			// NOTE: we allow len(p) == 0 to create file as a side effect in case that's useful.
 			n, err := tf.f.WriteAt(p, localOffset)
@@ -102,8 +99,7 @@ func (t *Tarball) WriteAt(buf []byte, offset int64) (int, error) {
 			remainder = remainder[n:]
 		}
 
-		fmt.Fprintf(os.Stderr, "remain: %s", hex.Dump(remainder))
-
+		// Keep iterating files until we have no more to write:
 		if len(remainder) == 0 {
 			break
 		}
