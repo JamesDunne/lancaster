@@ -7,48 +7,100 @@ import (
 )
 
 type Multicast struct {
-	listenConn    *net.UDPConn
-	listenSysConn syscall.RawConn
-
-	GroupAddress *net.UDPAddr
+	controlConn *net.UDPConn
+	dataConn    *net.UDPConn
 }
 
 func NewMulticast(address string, netInterface *net.Interface) (*Multicast, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", address)
+	controlAddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
 
-	listenConn, err := net.ListenMulticastUDP("udp", netInterface, udpAddr)
+	controlConn, err := net.ListenMulticastUDP("udp", netInterface, controlAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	listenSysConn, err := listenConn.SyscallConn()
+	// Data address is port+1:
+	dataAddr := &net.UDPAddr{
+		IP:   controlAddr.IP,
+		Port: controlAddr.Port + 1,
+		Zone: controlAddr.Zone,
+	}
+
+	dataConn, err := net.ListenMulticastUDP("udp", netInterface, dataAddr)
 	if err != nil {
 		return nil, err
 	}
 
 	c := &Multicast{
-		listenConn,
-		listenSysConn,
-		udpAddr,
+		controlConn,
+		dataConn,
 	}
 	return c, nil
 }
 
-func (c *Multicast) SetDatagramSize(datagramSize int) error {
-	err := c.listenConn.SetReadBuffer(datagramSize)
+func (m *Multicast) SetDatagramSize(datagramSize int) error {
+	err := m.controlConn.SetReadBuffer(datagramSize)
 	if err != nil {
 		return err
 	}
-	err = c.listenConn.SetWriteBuffer(datagramSize)
+	err = m.controlConn.SetWriteBuffer(datagramSize)
+	if err != nil {
+		return err
+	}
+	err = m.dataConn.SetReadBuffer(datagramSize)
+	if err != nil {
+		return err
+	}
+	err = m.dataConn.SetWriteBuffer(datagramSize)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Multicast) Send(msg []byte) (int, error) {
-	return c.listenConn.WriteToUDP(msg, c.GroupAddress)
+func (m *Multicast) SetTTL(ttl int) error {
+	err := setSocketOptionInt(m.controlConn, syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
+	if err != nil {
+		return err
+	}
+	err = setSocketOptionInt(m.dataConn, syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Multicast) SetLoopback(enable bool) error {
+	lp := 0
+	if enable {
+		lp = -1
+	}
+	err := setSocketOptionInt(m.controlConn, syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, lp)
+	if err != nil {
+		return err
+	}
+	err = setSocketOptionInt(m.dataConn, syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, lp)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Multicast) SendControl(msg []byte) (int, error) {
+	return m.controlConn.Write(msg)
+}
+
+func (m *Multicast) SendData(msg []byte) (int, error) {
+	return m.dataConn.Write(msg)
+}
+
+func (m *Multicast) RecvControl(msg []byte) (int, error) {
+	return m.controlConn.Read(msg)
+}
+
+func (m *Multicast) RecvData(msg []byte) (int, error) {
+	return m.dataConn.Read(msg)
 }

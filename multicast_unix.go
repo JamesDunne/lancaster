@@ -3,21 +3,22 @@
 package main
 
 import (
+	"net"
 	"syscall"
 )
 
-func (c *Multicast) SetTTL(ttl int) error {
-	return c.listenSysConn.Control(func(fd uintptr) {
-		syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
-	})
-}
+func setSocketOptionInt(conn *net.UDPConn, level, option, value int) error {
+	sysConn, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
 
-func (c *Multicast) SetLoopback(enable bool) error {
-	return c.listenSysConn.Control(func(fd uintptr) {
-		lp := 0
-		if enable {
-			lp = -1
-		}
-		syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_LOOP, lp)
+	var serr error
+	err = sysConn.Control(func(fd uintptr) {
+		serr = syscall.SetsockoptInt(int(fd), level, option, value)
 	})
+	if err != nil {
+		return err
+	}
+	return serr
 }

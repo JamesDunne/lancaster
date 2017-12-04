@@ -97,21 +97,21 @@ func main() {
 				// Read UDP messages from multicast:
 				for {
 					// TODO: use second parameter *net.UDPAddr to authenticate source?
-					n, recvAddr, err := m.listenConn.ReadFromUDP(buf)
+					n, recvAddr, err := m.controlConn.ReadFromUDP(buf)
 					if err != nil {
 						return err
 					}
 					msg := buf[:n]
 					fmt.Printf("recv %s", hex.Dump(msg))
 
-					n, err = m.listenConn.WriteToUDP(ack, recvAddr)
+					n, err = m.controlConn.WriteToUDP(ack, recvAddr)
 					if err != nil {
 						return err
 					}
 					fmt.Printf("sent %s", hex.Dump(ack))
 				}
 
-				err = m.listenConn.Close()
+				err = m.controlConn.Close()
 				return err
 			},
 		},
@@ -141,19 +141,19 @@ func main() {
 					return err
 				}
 
-				recv := make(chan []byte)
-				recvErr := make(chan error)
+				ctrl := make(chan []byte)
+				ctrlErr := make(chan error)
 
 				// Start a message receive loop:
 				go func() {
 					for {
 						buf := make([]byte, datagramSize)
-						n, err := m.listenConn.Read(buf)
+						n, err := m.RecvControl(buf)
 						if err != nil {
-							recvErr <- err
+							ctrlErr <- err
 							return
 						}
-						recv <- buf[0:n]
+						ctrl <- buf[0:n]
 					}
 				}()
 
@@ -163,20 +163,20 @@ func main() {
 				// Send/recv loop:
 				for {
 					select {
-					case msgi := <-recv:
-						fmt.Printf("recv %s", hex.Dump(msgi))
-					case err = <-recvErr:
+					case msgi := <-ctrl:
+						fmt.Printf("ctrlrecv %s", hex.Dump(msgi))
+					case err = <-ctrlErr:
 						break
 					case <-ticker:
-						_, err := m.Send(msgo)
+						_, err := m.SendData(msgo)
 						if err != nil {
 							return err
 						}
-						fmt.Printf("sent %s", hex.Dump(msgo))
+						fmt.Printf("datasent %s", hex.Dump(msgo))
 					}
 				}
 
-				err = m.listenConn.Close()
+				err = m.controlConn.Close()
 				return err
 			},
 		},
