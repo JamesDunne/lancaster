@@ -6,11 +6,22 @@ import (
 	"syscall"
 )
 
+type UDPMessage struct {
+	Error error
+
+	Data          []byte
+	SourceAddress *net.UDPAddr
+}
+
 type Multicast struct {
-	controlConn *net.UDPConn
-	controlAddr *net.UDPAddr
-	dataConn    *net.UDPConn
-	dataAddr    *net.UDPAddr
+	controlConn  *net.UDPConn
+	controlAddr  *net.UDPAddr
+	dataConn     *net.UDPConn
+	dataAddr     *net.UDPAddr
+	datagramSize int
+
+	Control chan UDPMessage
+	Data    chan UDPMessage
 }
 
 func NewMulticast(address string, netInterface *net.Interface) (*Multicast, error) {
@@ -41,11 +52,15 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 		controlAddr,
 		dataConn,
 		dataAddr,
+		1500,
+		make(chan UDPMessage),
+		make(chan UDPMessage),
 	}
 	return c, nil
 }
 
 func (m *Multicast) SetDatagramSize(datagramSize int) error {
+	m.datagramSize = datagramSize
 	err := m.controlConn.SetReadBuffer(datagramSize)
 	if err != nil {
 		return err
@@ -93,18 +108,31 @@ func (m *Multicast) SetLoopback(enable bool) error {
 	return nil
 }
 
+func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) {
+	// Start a message receive loop:
+	for {
+		buf := make([]byte, m.datagramSize)
+		n, recvAddr, err := conn.ReadFromUDP(buf)
+		if err != nil {
+			ch <- UDPMessage{Error: err}
+			return
+		}
+		ch <- UDPMessage{Data: buf[0:n], SourceAddress: recvAddr}
+	}
+}
+
 func (m *Multicast) SendControl(msg []byte) (int, error) {
 	return m.controlConn.WriteToUDP(msg, m.controlAddr)
+}
+
+func (m *Multicast) ControlReceiveLoop() {
+	m.receiveLoop(m.controlConn, m.Control)
 }
 
 func (m *Multicast) SendData(msg []byte) (int, error) {
 	return m.dataConn.WriteToUDP(msg, m.dataAddr)
 }
 
-func (m *Multicast) RecvControl(msg []byte) (int, error) {
-	return m.controlConn.Read(msg)
-}
-
-func (m *Multicast) RecvData(msg []byte) (int, error) {
-	return m.dataConn.Read(msg)
+func (m *Multicast) DataReceiveLoop() {
+	m.receiveLoop(m.dataConn, m.Data)
 }

@@ -91,24 +91,25 @@ func main() {
 				}
 				//local := c.Args().First()
 
-				buf := make([]byte, datagramSize)
 				ack := []byte("ack")
+
+				go m.DataReceiveLoop()
 
 				// Read UDP messages from multicast:
 				for {
-					// TODO: use second parameter *net.UDPAddr to authenticate source?
-					n, err := m.RecvData(buf)
-					if err != nil {
-						return err
-					}
-					msg := buf[:n]
-					fmt.Printf("datarecv %s", hex.Dump(msg))
+					select {
+					case msg := <-m.Data:
+						if msg.Error != nil {
+							return err
+						}
+						fmt.Printf("datarecv %s", hex.Dump(msg.Data))
 
-					n, err = m.SendControl(ack)
-					if err != nil {
-						return err
+						_, err := m.SendControl(ack)
+						if err != nil {
+							return err
+						}
+						fmt.Printf("ctrlsent %s", hex.Dump(ack))
 					}
-					fmt.Printf("ctrlsent %s", hex.Dump(ack))
 				}
 
 				err = m.controlConn.Close()
@@ -141,21 +142,7 @@ func main() {
 					return err
 				}
 
-				ctrl := make(chan []byte)
-				ctrlErr := make(chan error)
-
-				// Start a message receive loop:
-				go func() {
-					for {
-						buf := make([]byte, datagramSize)
-						n, err := m.RecvControl(buf)
-						if err != nil {
-							ctrlErr <- err
-							return
-						}
-						ctrl <- buf[0:n]
-					}
-				}()
+				go m.ControlReceiveLoop()
 
 				ticker := time.Tick(time.Second)
 
@@ -163,10 +150,11 @@ func main() {
 				// Send/recv loop:
 				for {
 					select {
-					case msgi := <-ctrl:
-						fmt.Printf("ctrlrecv %s", hex.Dump(msgi))
-					case err = <-ctrlErr:
-						break
+					case msgi := <-m.Control:
+						if msgi.Error != nil {
+							return msgi.Error
+						}
+						fmt.Printf("ctrlrecv %s", hex.Dump(msgi.Data))
 					case <-ticker:
 						_, err := m.SendData(msgo)
 						if err != nil {
