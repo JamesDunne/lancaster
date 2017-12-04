@@ -2,6 +2,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
@@ -36,6 +38,7 @@ type TarballFile struct {
 type tarballFile struct {
 	TarballFile
 
+	hash   []byte
 	offset int64
 	writer WriterAtCloser
 	reader ReaderAtCloser
@@ -52,8 +55,9 @@ func (l tarballFileList) Swap(i, j int) {
 }
 
 type Tarball struct {
-	files tarballFileList
-	size  int64
+	files  tarballFileList
+	size   int64
+	hashId []byte
 }
 
 func NewTarball(files []TarballFile) (*Tarball, error) {
@@ -81,6 +85,7 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 
 		filesInternal = append(filesInternal, tarballFile{
 			TarballFile: f,
+			hash:        nil,
 			offset:      size,
 			writer:      nil,
 			reader:      nil,
@@ -97,8 +102,47 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 	}, nil
 }
 
-func (t *Tarball) HashId() {
-	// TODO
+func hashFile(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	h := sha256.New()
+	const bufSize = 4096
+	buf := make([]byte, bufSize)
+	for {
+		n, err := f.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+		n, err = h.Write(buf[:n])
+	}
+
+	return h.Sum(nil), nil
+}
+
+func (t *Tarball) HashFiles() error {
+	all := sha256.New()
+	for _, f := range t.files {
+		h, err := hashFile(f.Path)
+		if err != nil {
+			return err
+		}
+		f.hash = h
+
+		all.Write([]byte(f.Path))
+		b := make([]byte, 0, 8)
+		binary.LittleEndian.PutUint64(b, uint64(f.Size))
+		all.Write(b)
+		all.Write(h)
+	}
+	t.hashId = all.Sum(nil)
+	return nil
+}
+
+func (t *Tarball) HashId() []byte {
+	return t.hashId
 }
 
 // io.Closer:
