@@ -3,8 +3,10 @@ package main
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/urfave/cli"
@@ -121,8 +123,35 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "serve files to a multicast group",
 			Action: func(c *cli.Context) error {
-				local := c.Args().First()
-				fmt.Printf("%s\n", local)
+				args := c.Args()
+				if !args.Present() {
+					return errors.New("Required arguments for files to serve")
+				}
+
+				files := make([]TarballFile, 0, len(args))
+				for _, a := range args {
+					stat, err := os.Stat(a)
+					if os.IsNotExist(err) {
+						continue
+					}
+					if err != nil {
+						return err
+					}
+
+					// Add file to virtual tarball list:
+					files = append(files, TarballFile{
+						Path: a,
+						Size: stat.Size(),
+						Mode: stat.Mode(),
+					})
+				}
+				if len(files) == 0 {
+					return errors.New("no files to serve")
+				}
+
+				// Treat collection of files as virtual tarball for reading:
+				tb, err := NewTarball(files)
+				defer tb.Close()
 
 				m, err := NewMulticast(address, netInterface)
 				if err != nil {
@@ -154,6 +183,7 @@ func main() {
 						if msgi.Error != nil {
 							return msgi.Error
 						}
+
 						fmt.Printf("ctrlrecv %s", hex.Dump(msgi.Data))
 					case <-ticker:
 						_, err := m.SendData(msgo)
