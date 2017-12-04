@@ -8,7 +8,9 @@ import (
 
 type Multicast struct {
 	controlConn *net.UDPConn
+	controlAddr *net.UDPAddr
 	dataConn    *net.UDPConn
+	dataAddr    *net.UDPAddr
 }
 
 func NewMulticast(address string, netInterface *net.Interface) (*Multicast, error) {
@@ -36,7 +38,9 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 
 	c := &Multicast{
 		controlConn,
+		controlAddr,
 		dataConn,
+		dataAddr,
 	}
 	return c, nil
 }
@@ -90,11 +94,11 @@ func (m *Multicast) SetLoopback(enable bool) error {
 }
 
 func (m *Multicast) SendControl(msg []byte) (int, error) {
-	return m.controlConn.Write(msg)
+	return m.controlConn.WriteToUDP(msg, m.controlAddr)
 }
 
 func (m *Multicast) SendData(msg []byte) (int, error) {
-	return m.dataConn.Write(msg)
+	return m.dataConn.WriteToUDP(msg, m.dataAddr)
 }
 
 func (m *Multicast) RecvControl(msg []byte) (int, error) {

@@ -97,18 +97,18 @@ func main() {
 				// Read UDP messages from multicast:
 				for {
 					// TODO: use second parameter *net.UDPAddr to authenticate source?
-					n, recvAddr, err := m.controlConn.ReadFromUDP(buf)
+					n, err := m.RecvData(buf)
 					if err != nil {
 						return err
 					}
 					msg := buf[:n]
-					fmt.Printf("recv %s", hex.Dump(msg))
+					fmt.Printf("datarecv %s", hex.Dump(msg))
 
-					n, err = m.controlConn.WriteToUDP(ack, recvAddr)
+					n, err = m.SendControl(ack)
 					if err != nil {
 						return err
 					}
-					fmt.Printf("sent %s", hex.Dump(ack))
+					fmt.Printf("ctrlsent %s", hex.Dump(ack))
 				}
 
 				err = m.controlConn.Close()
