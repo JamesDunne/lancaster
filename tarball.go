@@ -6,13 +6,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
 var (
-	ErrOutOfRange = errors.New("Offset out of range")
-	ErrNilBuffer  = errors.New("nil buffer")
-	ErrBadPAth    = errors.New("bad path")
+	ErrOutOfRange     = errors.New("Offset out of range")
+	ErrNilBuffer      = errors.New("nil buffer")
+	ErrBadPAth        = errors.New("bad path")
+	ErrDuplicatePaths = errors.New("not all paths are unique")
 )
 
 type ReaderAtCloser interface {
@@ -47,6 +49,7 @@ type Tarball struct {
 func NewTarball(files []TarballFile) (*Tarball, error) {
 	filesInternal := make([]tarballFile, 0, len(files))
 
+	uniquePaths := make(map[string]string)
 	size := int64(0)
 	for _, f := range files {
 		// Validate paths:
@@ -59,6 +62,12 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 				return nil, ErrBadPAth
 			}
 		}
+
+		// Validate all paths are unique:
+		if _, ok := uniquePaths[f.Path]; ok {
+			return nil, ErrDuplicatePaths
+		}
+		uniquePaths[f.Path] = f.Path
 
 		filesInternal = append(filesInternal, tarballFile{
 			TarballFile: f,

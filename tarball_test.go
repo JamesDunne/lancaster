@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -9,7 +10,7 @@ import (
 func newTarball(t *testing.T, files []TarballFile) *Tarball {
 	tb, err := NewTarball(files)
 	if err != nil {
-		t.Fatalf("NewTarball: %v", err)
+		panic(err)
 	}
 	return tb
 }
@@ -97,9 +98,6 @@ func TestWriteAt_SpanningFiles(t *testing.T) {
 }
 
 func TestReadAt_OneFile(t *testing.T) {
-	wd, err := os.Getwd()
-	t.Logf("%s", wd)
-
 	testMessage := []byte("hello, world!\n")
 	const fname = "test.txt"
 
@@ -144,41 +142,53 @@ func TestReadAt_OneFile(t *testing.T) {
 	}
 }
 
-func TestReadAt_SpanningFiles(t *testing.T) {
-	wd, err := os.Getwd()
-	t.Logf("%s", wd)
+func createTestFile(path string, contents []byte) (os.FileInfo, error) {
+	// Create file for test purposes:
+	mainFile, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		err = ioutil.WriteFile(path, contents, os.FileMode(0644))
+		if err != nil {
+			return nil, err
+		}
+		mainFile, err = os.Stat(path)
+	}
+	return mainFile, err
+}
 
+func TestReadAt_SpanningFiles(t *testing.T) {
 	testString := "hello, world!\n"
 	testMessage := []byte("hello, world!\n")
-	const fname = "test1.txt"
+	const fname1 = "test1.txt"
+	const fname2 = "test2.txt"
 
 	// Create file for test purposes:
-	mainFile, err := os.Stat(fname)
-	if os.IsNotExist(err) {
-		var file *os.File
-		file, err = os.Create(fname)
-		file.Write(testMessage)
-		file.Close()
-		mainFile, err = os.Stat(fname)
+	testFile1, err := createTestFile(fname1, testMessage)
+	if err != nil {
+		t.Fatalf("%v", err)
 	}
+	testFile2, err := createTestFile(fname2, testMessage)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 
-	if mainFile.Size() != int64(len(testMessage)) {
+	if testFile1.Size() != int64(len(testMessage)) {
+		t.Fatal("test file size != len(testMessage)")
+	}
+
+	if testFile2.Size() != int64(len(testMessage)) {
 		t.Fatal("test file size != len(testMessage)")
 	}
 
 	files := []TarballFile{
 		TarballFile{
-			Path: fname,
-			Size: mainFile.Size(),
-			Mode: mainFile.Mode(),
+			Path: fname1,
+			Size: testFile1.Size(),
+			Mode: testFile1.Mode(),
 		},
 		TarballFile{
-			Path: fname,
-			Size: mainFile.Size(),
-			Mode: mainFile.Mode(),
+			Path: fname2,
+			Size: testFile2.Size(),
+			Mode: testFile2.Mode(),
 		},
 	}
 
