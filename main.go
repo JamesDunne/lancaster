@@ -96,21 +96,34 @@ func main() {
 				ack := []byte("ack")
 
 				go m.DataReceiveLoop()
+				go m.ControlReceiveLoop()
 
 				// Read UDP messages from multicast:
 				for {
 					select {
+					case ctrl := <-m.Control:
+						if ctrl.Error != nil {
+							return ctrl.Error
+						}
+						fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
+						if len(ctrl.Data) >= 1 {
+							switch ctrl.Data[0] {
+							case 0x01:
+								hashId := ctrl.Data[1:]
+								fmt.Printf("announcement: %v\n", hashId)
+							}
+						}
 					case msg := <-m.Data:
 						if msg.Error != nil {
-							return err
+							return msg.Error
 						}
-						fmt.Printf("datarecv %s", hex.Dump(msg.Data))
+						fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
 
 						_, err := m.SendControl(ack)
 						if err != nil {
 							return err
 						}
-						fmt.Printf("ctrlsent %s", hex.Dump(ack))
+						fmt.Printf("ctrlsent\n%s", hex.Dump(ack))
 					}
 				}
 
@@ -178,8 +191,8 @@ func main() {
 
 				go m.ControlReceiveLoop()
 
-				// Tick every 5 seconds to send a server announcement:
-				ticker := time.Tick(5 * time.Second)
+				// Tick to send a server announcement:
+				ticker := time.Tick(1 * time.Second)
 
 				// Create an announcement message:
 				announcement := make([]byte, 0, 1+32)
@@ -193,7 +206,7 @@ func main() {
 						if msgi.Error != nil {
 							return msgi.Error
 						}
-						fmt.Printf("ctrlrecv %s", hex.Dump(msgi.Data))
+						fmt.Printf("ctrlrecv\n%s", hex.Dump(msgi.Data))
 					case <-ticker:
 						_, err := m.SendControl(announcement)
 						if err != nil {
