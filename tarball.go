@@ -97,6 +97,10 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 	}, nil
 }
 
+func (t *Tarball) HashId() {
+	// TODO
+}
+
 // io.Closer:
 func (t *Tarball) Close() error {
 	for _, tf := range t.files {
