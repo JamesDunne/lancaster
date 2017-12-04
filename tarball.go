@@ -41,13 +41,23 @@ type tarballFile struct {
 	reader ReaderAtCloser
 }
 
+type tarballFileList []tarballFile
+
+func (l tarballFileList) Len() int           { return len(l) }
+func (l tarballFileList) Less(i, j int) bool { return strings.Compare(l[i].Path, l[j].Path) == 0 }
+func (l tarballFileList) Swap(i, j int) {
+	tmpi := l[i]
+	l[i] = l[j]
+	l[j] = tmpi
+}
+
 type Tarball struct {
-	files []tarballFile
+	files tarballFileList
 	size  int64
 }
 
 func NewTarball(files []TarballFile) (*Tarball, error) {
-	filesInternal := make([]tarballFile, 0, len(files))
+	filesInternal := tarballFileList(make([]tarballFile, 0, len(files)))
 
 	uniquePaths := make(map[string]string)
 	size := int64(0)
@@ -77,6 +87,9 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 		})
 		size += f.Size
 	}
+
+	// Sort files for consistency:
+	sort.Sort(filesInternal)
 
 	return &Tarball{
 		files: filesInternal,
