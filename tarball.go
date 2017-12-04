@@ -102,6 +102,8 @@ func NewTarball(files []TarballFile) (*Tarball, error) {
 	}, nil
 }
 
+var zeroHash [32]byte = [32]byte{0}
+
 func hashFile(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -111,12 +113,18 @@ func hashFile(path string) ([]byte, error) {
 	h := sha256.New()
 	const bufSize = 4096
 	buf := make([]byte, bufSize)
+	tn := 0
 	for {
 		n, err := f.Read(buf)
+		if err == io.EOF && n == 0 && tn == 0 {
+			return zeroHash[:], nil
+		}
 		if err != nil {
 			return nil, err
 		}
 		n, err = h.Write(buf[:n])
+		// So long as tn != 0 this is sufficient to detect empty hash case.
+		tn = n
 	}
 
 	return h.Sum(nil), nil
@@ -132,7 +140,7 @@ func (t *Tarball) HashFiles() error {
 		f.hash = h
 
 		all.Write([]byte(f.Path))
-		b := make([]byte, 0, 8)
+		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, uint64(f.Size))
 		all.Write(b)
 		all.Write(h)
