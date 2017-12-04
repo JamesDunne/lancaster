@@ -153,7 +153,10 @@ func main() {
 				tb, err := NewTarball(files)
 				defer tb.Close()
 
-				tb.HashId()
+				err = tb.HashFiles()
+				if err != nil {
+					return err
+				}
 
 				m, err := NewMulticast(address, netInterface)
 				if err != nil {
@@ -177,7 +180,11 @@ func main() {
 
 				// Tick every 5 seconds to send a server announcement:
 				ticker := time.Tick(5 * time.Second)
-				msgo := []byte("ann")
+
+				// Create an announcement message:
+				announcement := make([]byte, 0, 1+32)
+				announcement = append(announcement, byte(0x01))
+				announcement = append(announcement, tb.HashId()...)
 
 				// Send/recv loop:
 				for {
@@ -188,7 +195,7 @@ func main() {
 						}
 						fmt.Printf("ctrlrecv %s", hex.Dump(msgi.Data))
 					case <-ticker:
-						_, err := m.SendData(msgo)
+						_, err := m.SendControl(announcement)
 						if err != nil {
 							return err
 						}
