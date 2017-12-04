@@ -7,13 +7,13 @@ import (
 )
 
 func (c *Multicast) SetTTL(ttl int) error {
-	return c.sysconn.Control(func(fd uintptr) {
+	return c.listenSysConn.Control(func(fd uintptr) {
 		syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_MULTICAST_TTL, ttl)
 	})
 }
 
 func (c *Multicast) SetLoopback(enable bool) error {
-	return c.sysconn.Control(func(fd uintptr) {
+	return c.listenSysConn.Control(func(fd uintptr) {
 		lp := 0
 		if enable {
 			lp = -1

@@ -72,7 +72,7 @@ func main() {
 			Aliases: []string{"d"},
 			Usage:   "download files from a multicast group locally",
 			Action: func(c *cli.Context) error {
-				m, err := NewMulticastListener(address, netInterface)
+				m, err := NewMulticast(address, netInterface)
 				if err != nil {
 					return err
 				}
@@ -92,19 +92,26 @@ func main() {
 				//local := c.Args().First()
 
 				buf := make([]byte, datagramSize)
+				ack := []byte("ack")
 
 				// Read UDP messages from multicast:
 				for {
 					// TODO: use second parameter *net.UDPAddr to authenticate source?
-					n, _, err := m.conn.ReadFromUDP(buf)
+					n, recvAddr, err := m.listenConn.ReadFromUDP(buf)
 					if err != nil {
 						return err
 					}
 					msg := buf[:n]
-					fmt.Printf("%s", hex.Dump(msg))
+					fmt.Printf("recv %s", hex.Dump(msg))
+
+					n, err = m.listenConn.WriteToUDP(ack, recvAddr)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("sent %s", hex.Dump(ack))
 				}
 
-				err = m.conn.Close()
+				err = m.listenConn.Close()
 				return err
 			},
 		},
@@ -113,8 +120,10 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "server files to a multicast group",
 			Action: func(c *cli.Context) error {
-				//local := c.Args().First()
-				m, err := NewMulticastSender(address, netInterface)
+				local := c.Args().First()
+				fmt.Printf("%s\n", local)
+
+				m, err := NewMulticast(address, netInterface)
 				if err != nil {
 					return err
 				}
@@ -131,19 +140,43 @@ func main() {
 				if err != nil {
 					return err
 				}
-				msg := []byte("hello, world!\n")
 
-				// Write UDP messages to multicast:
-				for {
-					_, err := m.conn.Write(msg)
-					if err != nil {
-						return err
+				recv := make(chan []byte)
+				recvErr := make(chan error)
+
+				// Start a message receive loop:
+				go func() {
+					for {
+						buf := make([]byte, datagramSize)
+						n, err := m.listenConn.Read(buf)
+						if err != nil {
+							recvErr <- err
+							return
+						}
+						recv <- buf[0:n]
 					}
-					fmt.Printf("%s", hex.Dump(msg))
-					time.Sleep(1 * time.Second)
+				}()
+
+				ticker := time.Tick(time.Second)
+
+				msgo := []byte("hello, world!\n")
+				// Send/recv loop:
+				for {
+					select {
+					case msgi := <-recv:
+						fmt.Printf("recv %s", hex.Dump(msgi))
+					case err = <-recvErr:
+						break
+					case <-ticker:
+						_, err := m.Send(msgo)
+						if err != nil {
+							return err
+						}
+						fmt.Printf("sent %s", hex.Dump(msgo))
+					}
 				}
 
-				err = m.conn.Close()
+				err = m.listenConn.Close()
 				return err
 			},
 		},

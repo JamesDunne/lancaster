@@ -7,63 +7,48 @@ import (
 )
 
 type Multicast struct {
-	conn    *net.UDPConn
-	udpAddr *net.UDPAddr
-	sysconn syscall.RawConn
+	listenConn    *net.UDPConn
+	listenSysConn syscall.RawConn
+
+	GroupAddress *net.UDPAddr
 }
 
-func NewMulticastListener(address string, netInterface *net.Interface) (*Multicast, error) {
+func NewMulticast(address string, netInterface *net.Interface) (*Multicast, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenMulticastUDP("udp", netInterface, udpAddr)
+	listenConn, err := net.ListenMulticastUDP("udp", netInterface, udpAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	sysconn, err := conn.SyscallConn()
-	if err != nil {
-		return nil, err
-	}
-
-	c := &Multicast{
-		conn,
-		udpAddr,
-		sysconn,
-	}
-	return c, nil
-}
-
-func NewMulticastSender(address string, netInterface *net.Interface) (*Multicast, error) {
-	udpAddr, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	sysconn, err := conn.SyscallConn()
+	listenSysConn, err := listenConn.SyscallConn()
 	if err != nil {
 		return nil, err
 	}
 
 	c := &Multicast{
-		conn,
+		listenConn,
+		listenSysConn,
 		udpAddr,
-		sysconn,
 	}
 	return c, nil
 }
 
 func (c *Multicast) SetDatagramSize(datagramSize int) error {
-	err := c.conn.SetReadBuffer(datagramSize)
+	err := c.listenConn.SetReadBuffer(datagramSize)
 	if err != nil {
 		return err
 	}
-	return c.conn.SetWriteBuffer(datagramSize)
+	err = c.listenConn.SetWriteBuffer(datagramSize)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Multicast) Send(msg []byte) (int, error) {
+	return c.listenConn.WriteToUDP(msg, c.GroupAddress)
 }
