@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -67,7 +65,6 @@ func (s *Server) Run() error {
 		}
 
 		md := mdBuf.Bytes()
-		fmt.Printf("md\n%s", hex.Dump(md))
 
 		sectionSize := (s.m.datagramSize - (protocolPrefixSize + metadataSectionMsgSize))
 		sectionCount := len(md) / sectionSize
@@ -94,7 +91,6 @@ func (s *Server) Run() error {
 			s.metadataSections = append(s.metadataSections, ms)
 			o += e
 		}
-		fmt.Printf("%v\n", s.metadataSections)
 
 		// Create metadata header to describe how many sections there are:
 		s.metadataHeader = make([]byte, metadataSectionMsgSize)
@@ -134,7 +130,7 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) processControl(ctrl UDPMessage) error {
-	fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
+	//fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
 	hashId, op, data, err := extractServerMessage(ctrl)
 	if err != nil {
 		return err

@@ -3,7 +3,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -67,7 +66,6 @@ func (c *Client) Run() error {
 			if msg.Error != nil {
 				return msg.Error
 			}
-			fmt.Printf("ctrlrecv\n%s", hex.Dump(msg.Data))
 
 			err = c.processControl(msg)
 			logError(err)
@@ -76,8 +74,6 @@ func (c *Client) Run() error {
 			if msg.Error != nil {
 				return msg.Error
 			}
-			fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
-
 			err = c.processData(msg)
 			logError(err)
 
@@ -96,6 +92,8 @@ func (c *Client) processControl(msg UDPMessage) error {
 	if err != nil {
 		return err
 	}
+
+	//fmt.Printf("ctrlrecv\n%s", hex.Dump(msg.Data))
 
 	switch c.state {
 	case ExpectAnnouncement:
@@ -178,6 +176,7 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 func (c *Client) ask() error {
 	err := (error)(nil)
+	//fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
 
 	switch c.state {
 	case ExpectMetadataHeader:
