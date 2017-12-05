@@ -7,6 +7,7 @@ import (
 )
 
 const protocolVersion = 1
+const protocolPrefixSize = 1 + 32 + 1
 
 var (
 	ErrMessageTooShort      = errors.New("message too short")

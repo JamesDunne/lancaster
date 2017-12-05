@@ -12,8 +12,11 @@ type Server struct {
 	m  *Multicast
 	tb *VirtualTarballReader
 
-	metadataHeader []byte
+	metadataHeader   []byte
+	metadataSections [][]byte
 }
+
+const metadataSectionMsgPrefixSize = 36
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
@@ -30,11 +33,11 @@ func (s *Server) Run() error {
 
 	// Construct metadata sections:
 	{
-		byteOrder := binary.LittleEndian
 		tb := s.tb
 		mdSize := (2 + 8) + (len(tb.files) * (2 + 40 + 8 + 4 + 32))
 		mdBuf := bytes.NewBuffer(make([]byte, 0, mdSize))
 
+		byteOrder := binary.LittleEndian
 		writePrimitive := func(data interface{}) {
 			if err == nil {
 				err = binary.Write(mdBuf, byteOrder, data)
@@ -64,8 +67,27 @@ func (s *Server) Run() error {
 			return err
 		}
 
-		s.metadataHeader = mdBuf.Bytes()
-		fmt.Printf("md\n%s", hex.Dump(s.metadataHeader))
+		md := mdBuf.Bytes()
+		fmt.Printf("md\n%s", hex.Dump(md))
+
+		sectionSize := (s.m.datagramSize - protocolPrefixSize - metadataSectionMsgPrefixSize)
+		sectionCount := len(md) / sectionSize
+		if sectionCount*sectionSize < len(md) {
+			sectionCount++
+		}
+
+		// Slice into sections:
+		s.metadataSections = make([][]byte, 0, sectionCount)
+		o := 0
+		for n := 0; n < sectionCount; n++ {
+			l := o + sectionSize
+			if l > len(md) {
+				l = len(md) - o
+			}
+			s.metadataSections = append(s.metadataSections, md[o:l])
+			o += l
+		}
+		fmt.Printf("%v\n", s.metadataSections)
 	}
 
 	s.m.SendsControlToClient()
