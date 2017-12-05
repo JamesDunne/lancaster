@@ -37,7 +37,6 @@ func (s *Server) Run() error {
 		mdSize := (2 + 8) + (len(tb.files) * (2 + 40 + 8 + 4 + 32))
 		mdBuf := bytes.NewBuffer(make([]byte, 0, mdSize))
 
-		byteOrder := binary.LittleEndian
 		writePrimitive := func(data interface{}) {
 			if err == nil {
 				err = binary.Write(mdBuf, byteOrder, data)
@@ -150,10 +149,10 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case RequestMetadataHeader:
 		_ = data
 
-		// Compose metadata header and send to clients:
+		// Respond with metadata header:
 		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataHeader, s.metadataHeader))
 	case RequestMetadataSection:
-		sectionIndex := binary.LittleEndian.Uint16(data[0:2])
+		sectionIndex := byteOrder.Uint16(data[0:2])
 		if sectionIndex >= uint16(len(s.metadataSections)) {
 			// Out of range
 			return nil
@@ -162,7 +161,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		// Compose a metadata section message with leading index:
 		section := s.metadataSections[sectionIndex]
 		ms := make([]byte, metadataSectionMsgSize+len(section))
-		binary.LittleEndian.PutUint16(ms, sectionIndex)
+		byteOrder.PutUint16(ms, sectionIndex)
 		ms = append(ms, section...)
 		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, ms))
 	}

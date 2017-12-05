@@ -27,7 +27,11 @@ type Client struct {
 	state       ClientState
 	resendTimer <-chan time.Time
 
-	hashId      []byte
+	hashId               []byte
+	metadataSectionCount uint16
+	metadataSections     [][]byte
+	nextSectionIndex     uint16
+
 	nakRregions NakRegions
 }
 
@@ -112,17 +116,21 @@ func (c *Client) processControl(msg UDPMessage) error {
 		}
 
 	case ExpectMetadataHeader:
+		if bytes.Compare(c.hashId, hashId) != 0 {
+			// Ignore message not for us:
+			return nil
+		}
+
 		switch op {
 		case RespondMetadataHeader:
 			fmt.Printf("metadata header\n")
-			if bytes.Compare(c.hashId, hashId) != 0 {
-				// Ignore message not for us:
-				return nil
-			}
-			_ = data
+			// Read count of sections:
+			c.metadataSectionCount = byteOrder.Uint16(data[0:2])
+			c.metadataSections = make([][]byte, c.metadataSectionCount)
 
 			// Request metadata sections:
 			c.state = ExpectMetadataSections
+			c.nextSectionIndex = 0
 			if err = c.ask(); err != nil {
 				return err
 			}
@@ -130,6 +138,39 @@ func (c *Client) processControl(msg UDPMessage) error {
 			// ignore
 		}
 
+	case ExpectMetadataSections:
+		if bytes.Compare(c.hashId, hashId) != 0 {
+			// Ignore message not for us:
+			return nil
+		}
+
+		switch op {
+		case RespondMetadataSection:
+			fmt.Printf("metadata section\n")
+			sectionIndex := byteOrder.Uint16(data[0:2])
+			if sectionIndex == c.nextSectionIndex {
+				c.metadataSections[sectionIndex] = data[2:]
+
+				c.nextSectionIndex++
+				if c.nextSectionIndex >= c.metadataSectionCount {
+					// Done.
+					// TODO: decode metadata and create VirtualTarballWriter
+					c.state = ExpectDataSections
+					if err = c.ask(); err != nil {
+						return err
+					}
+					return nil
+				}
+			}
+
+			// Request next metadata sections:
+			c.state = ExpectMetadataSections
+			if err = c.ask(); err != nil {
+				return err
+			}
+		default:
+			// ignore
+		}
 	}
 
 	return nil
@@ -144,6 +185,16 @@ func (c *Client) ask() error {
 		if err != nil {
 			return err
 		}
+	case ExpectMetadataSections:
+		// Request next metadata section:
+		req := make([]byte, 2)
+		byteOrder.PutUint16(req[0:2], uint16(c.nextSectionIndex))
+		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataSection, req))
+		if err != nil {
+			return err
+		}
+	default:
+		return nil
 	}
 
 	// Start a timer for next ask in case this one got lost:

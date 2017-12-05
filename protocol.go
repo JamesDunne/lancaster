@@ -3,6 +3,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 )
 
@@ -14,6 +15,8 @@ var (
 	ErrWrongProtocolVersion = errors.New("wrong protocol version")
 	ErrAckOutOfRange        = errors.New("ack out of range")
 )
+
+var byteOrder = binary.LittleEndian
 
 type ControlToClientOp byte
 type ControlToServerOp byte
