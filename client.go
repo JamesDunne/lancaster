@@ -8,7 +8,7 @@ import (
 
 type Client struct {
 	m  *Multicast
-	tb *Tarball
+	tb *VirtualTarballReader
 }
 
 func NewClient(m *Multicast) *Client {

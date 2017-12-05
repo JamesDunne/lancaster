@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func newTarball(t *testing.T, files []TarballFile) *Tarball {
+func newTarball(t *testing.T, files []TarballFile) *VirtualTarballReader {
 	tb, err := NewTarball(files)
 	if err != nil {
 		panic(err)
@@ -15,7 +15,7 @@ func newTarball(t *testing.T, files []TarballFile) *Tarball {
 	return tb
 }
 
-func closeTarball(t *testing.T, tb *Tarball) {
+func closeTarball(t *testing.T, tb *VirtualTarballReader) {
 	err := tb.Close()
 	if err != nil {
 		t.Fatalf("Error closing: %v", err)
@@ -47,53 +47,6 @@ func TestTarball_BadPath1(t *testing.T) {
 	}
 	if err != ErrBadPAth {
 		t.Fatal("Expected ErrBadPath")
-	}
-}
-
-func TestWriteAt_OneFile(t *testing.T) {
-	files := []TarballFile{
-		TarballFile{
-			Path: "jim1.txt",
-			Size: 3,
-			Mode: 0644,
-		},
-	}
-
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
-
-	n, err := tb.WriteAt([]byte("hi\n"), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 3 {
-		t.Fatal("n != 2")
-	}
-}
-
-func TestWriteAt_SpanningFiles(t *testing.T) {
-	files := []TarballFile{
-		TarballFile{
-			Path: "hello.txt",
-			Size: 7,
-			Mode: 0644,
-		},
-		TarballFile{
-			Path: "world.txt",
-			Size: 7,
-			Mode: 0644,
-		},
-	}
-
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
-
-	n, err := tb.WriteAt([]byte("Hello, world!\n"), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 14 {
-		t.Fatalf("n != 14; n = %v", n)
 	}
 }
 

@@ -135,13 +135,11 @@ func main() {
 				}
 
 				// Treat collection of files as virtual tarball for reading:
-				tb, err := NewTarball(files)
-				defer tb.Close()
-
-				err = tb.HashFiles()
+				tb, err := NewVirtualTarballReader(files)
 				if err != nil {
 					return err
 				}
+				defer tb.Close()
 
 				m, err := createMulticast()
 				if err != nil {

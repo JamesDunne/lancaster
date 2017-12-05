@@ -10,10 +10,10 @@ const protocolVersion = 1
 
 type Server struct {
 	m  *Multicast
-	tb *Tarball
+	tb *VirtualTarballReader
 }
 
-func NewServer(m *Multicast, tb *Tarball) *Server {
+func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
 		m,
 		tb,
