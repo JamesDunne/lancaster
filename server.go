@@ -20,11 +20,11 @@ func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	}
 }
 
-func (s *Server) controlMessage(op byte, data []byte) []byte {
+func (s *Server) controlMessage(op ControlToClientOp, data []byte) []byte {
 	msg := make([]byte, 0, 1+32+1+len(data))
 	msg = append(msg, protocolVersion)
 	msg = append(msg, s.tb.HashId()...)
-	msg = append(msg, op)
+	msg = append(msg, byte(op))
 	msg = append(msg, data...)
 	return msg
 }
@@ -36,7 +36,7 @@ func (s *Server) Run() error {
 	ticker := time.Tick(1 * time.Second)
 
 	// Create an announcement message:
-	announcement := s.controlMessage(byte(Announce), nil)
+	announcement := s.controlMessage(AnnounceTarball, nil)
 
 	// Send/recv loop:
 	for {

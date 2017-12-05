@@ -6,12 +6,16 @@ import (
 	"syscall"
 )
 
-// Control messages:
+type ControlToClientOp byte
+type ControlToServerOp byte
+
 const (
-	_ = iota
-	Announce
-	RequestMetadata
-	AcknowledgeSection
+	// To-Client control messages:
+	AnnounceTarball = ControlToClientOp(iota)
+
+	// To-Server control messages:
+	RequestMetadata = ControlToServerOp(iota)
+	AcknowledgeData
 )
 
 // Data messages:
