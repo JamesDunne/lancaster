@@ -103,7 +103,7 @@ func (s *Server) Run() error {
 	}
 
 	s.nakRegions = NewNakRegions(s.tb.size)
-	s.regionSize = uint16(s.m.datagramSize - (protocolDataPrefixSize + regionMessagePrefixSize))
+	s.regionSize = uint16(s.m.datagramSize - (protocolDataMsgSize))
 	s.nextRegion = 0
 	s.regionCount = s.tb.size / int64(s.regionSize)
 	if int64(s.regionSize)*s.regionCount < s.tb.size {
@@ -149,6 +149,9 @@ func (s *Server) Run() error {
 			n := 0
 			buf := make([]byte, s.regionSize)
 			n, err = s.tb.ReadAt(buf, s.nextRegion)
+			if err == ErrOutOfRange {
+				continue
+			}
 			if err != nil {
 				return err
 			}

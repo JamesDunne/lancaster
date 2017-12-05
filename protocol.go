@@ -9,11 +9,10 @@ import (
 
 const protocolVersion = 1
 const protocolControlPrefixSize = 1 + 32 + 1
-const protocolDataPrefixSize = 1 + 32
+const protocolDataMsgSize = 1 + 32 + 8
 
 const metadataSectionMsgSize = 2
 const metadataHeaderMsgSize = 2
-const regionMessagePrefixSize = 8
 
 var (
 	ErrMessageTooShort      = errors.New("message too short")
@@ -143,7 +142,8 @@ func dataMessage(hashId []byte, region int64, data []byte) []byte {
 	msg := make([]byte, 0, 1+32+8+len(data))
 	msg = append(msg, protocolVersion)
 	msg = append(msg, hashId...)
-	msg = append(msg, 0, 0, 0, 0, 0, 0, 0, 0)
+	msg = msg[:len(msg)+8]
+	//msg = append(msg, 0, 0, 0, 0, 0, 0, 0, 0)
 	byteOrder.PutUint64(msg, uint64(region))
 	msg = append(msg, data...)
 	return msg
@@ -181,6 +181,24 @@ func extractServerMessage(ctrl UDPMessage) (hashId []byte, op ControlToServerOp,
 	hashId = ctrl.Data[1:33]
 	op = ControlToServerOp(ctrl.Data[33])
 	data = ctrl.Data[34:]
+
+	return
+}
+
+func extractDataMessage(ctrl UDPMessage) (hashId []byte, region int64, data []byte, err error) {
+	if len(ctrl.Data) < protocolDataMsgSize {
+		err = ErrMessageTooShort
+		return
+	}
+
+	if ctrl.Data[0] != protocolVersion {
+		err = ErrWrongProtocolVersion
+		return
+	}
+
+	hashId = ctrl.Data[1:33]
+	region = int64(byteOrder.Uint64(ctrl.Data[33 : 33+8]))
+	data = ctrl.Data[33+8:]
 
 	return
 }

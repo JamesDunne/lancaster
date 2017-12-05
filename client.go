@@ -178,7 +178,7 @@ func (c *Client) processControl(msg UDPMessage) error {
 		}
 
 	case ExpectDataSections:
-
+		// Not interested in control messages really at this time. Maybe introduce server death messages?
 	}
 
 	return nil
@@ -303,5 +303,34 @@ func (c *Client) decodeMetadata() error {
 }
 
 func (c *Client) processData(msg UDPMessage) error {
+	// Not ready for data yet:
+	if c.tb == nil {
+		return nil
+	}
+
+	// Decode data message:
+	hashId, region, data, err := extractDataMessage(msg)
+	if err != nil {
+		return err
+	}
+
+	if bytes.Compare(c.hashId, hashId) != 0 {
+		// Ignore message not for us:
+		return nil
+	}
+
+	// ACK the region:
+	err = c.nakRregions.Ack(region, region+int64(len(data)))
+	if err != nil {
+		return err
+	}
+	// Write the data:
+	n := 0
+	n, err = c.tb.WriteAt(data, region)
+	if err != nil {
+		return err
+	}
+	_ = n
+
 	return nil
 }

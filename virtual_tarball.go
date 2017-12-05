@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ErrOutOfRange     = errors.New("Offset out of range")
+	ErrOutOfRange     = errors.New("offset out of range")
 	ErrNilBuffer      = errors.New("nil buffer")
 	ErrBadPAth        = errors.New("bad path")
 	ErrDuplicatePaths = errors.New("not all paths are unique")
