@@ -2,9 +2,7 @@
 package main
 
 import (
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 
@@ -101,42 +99,8 @@ func main() {
 
 				//local := c.Args().First()
 
-				ack := []byte("ack")
-
-				go m.DataReceiveLoop()
-				go m.ControlReceiveLoop()
-
-				// Read UDP messages from multicast:
-				for {
-					select {
-					case ctrl := <-m.Control:
-						if ctrl.Error != nil {
-							return ctrl.Error
-						}
-						fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
-						if len(ctrl.Data) >= 1 {
-							switch ctrl.Data[0] {
-							case 0x01:
-								hashId := ctrl.Data[1:]
-								fmt.Printf("announcement: %v\n", hashId)
-							}
-						}
-					case msg := <-m.Data:
-						if msg.Error != nil {
-							return msg.Error
-						}
-						fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
-
-						_, err := m.SendControl(ack)
-						if err != nil {
-							return err
-						}
-						fmt.Printf("ctrlsent\n%s", hex.Dump(ack))
-					}
-				}
-
-				err = m.controlConn.Close()
-				return err
+				cl := NewClient(m)
+				return cl.Run()
 			},
 		},
 		cli.Command{
