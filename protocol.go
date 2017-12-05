@@ -12,6 +12,34 @@ var (
 	ErrWrongProtocolVersion = errors.New("wrong protocol version")
 )
 
+type ControlToClientOp byte
+type ControlToServerOp byte
+
+const (
+	// To-Client control messages:
+	AnnounceTarball = ControlToClientOp(iota)
+	RespondMetadataHeader
+	RespondMetadataSection
+	DeliverDataSection
+
+	// To-Server control messages:
+	RequestMetadataHeader = ControlToServerOp(iota)
+	RequestMetadataSection
+	NakDataSection
+)
+
+type nakRegion struct {
+	start int64
+	endEx int64
+}
+
+type nakRegions []nakRegion
+
+func (r *nakRegions) Clear(size int64) {
+	*r = (*r)[:0]
+	*r = append(*r, nakRegion{start: 0, endEx: size})
+}
+
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
 	msg := make([]byte, 0, 1+32+1+len(data))
 	msg = append(msg, protocolVersion)
