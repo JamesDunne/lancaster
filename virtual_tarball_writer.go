@@ -15,7 +15,7 @@ type VirtualTarballWriter struct {
 }
 
 func NewVirtualTarballWriter(files []TarballFile, hashId []byte) (*VirtualTarballWriter, error) {
-	filesInternal := tarballFileList(make([]tarballFile, 0, len(files)))
+	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
 
 	uniquePaths := make(map[string]string)
 	size := int64(0)
@@ -37,7 +37,7 @@ func NewVirtualTarballWriter(files []TarballFile, hashId []byte) (*VirtualTarbal
 		}
 		uniquePaths[f.Path] = f.Path
 
-		filesInternal = append(filesInternal, tarballFile{
+		filesInternal = append(filesInternal, &tarballFile{
 			TarballFile: f,
 			offset:      size,
 			writer:      nil,

@@ -41,7 +41,7 @@ type tarballFile struct {
 	reader ReaderAtCloser
 }
 
-type tarballFileList []tarballFile
+type tarballFileList []*tarballFile
 
 func (l tarballFileList) Len() int           { return len(l) }
 func (l tarballFileList) Less(i, j int) bool { return strings.Compare(l[i].Path, l[j].Path) == 0 }
@@ -58,6 +58,7 @@ func hashFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	h := sha256.New()
 	const bufSize = 4096

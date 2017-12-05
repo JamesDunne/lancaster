@@ -17,7 +17,7 @@ type VirtualTarballReader struct {
 }
 
 func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error) {
-	filesInternal := tarballFileList(make([]tarballFile, 0, len(files)))
+	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
 
 	all := sha256.New()
 
@@ -56,7 +56,7 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 		all.Write(h)
 
 		// Keep track of the file internally:
-		filesInternal = append(filesInternal, tarballFile{
+		filesInternal = append(filesInternal, &tarballFile{
 			TarballFile: f,
 			offset:      size,
 			writer:      nil,
@@ -111,7 +111,7 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 
 		// Open file if not already:
 		if tf.reader == nil {
-			f, err := os.Open(tf.Path)
+			f, err := os.OpenFile(tf.Path, os.O_RDONLY, 0)
 			if err != nil {
 				return 0, err
 			}
