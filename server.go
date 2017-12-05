@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const protocolVersion = 1
-
 type Server struct {
 	m  *Multicast
 	tb *VirtualTarballReader
@@ -20,16 +18,12 @@ func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	}
 }
 
-func (s *Server) controlMessage(op ControlToClientOp, data []byte) []byte {
-	msg := make([]byte, 0, 1+32+1+len(data))
-	msg = append(msg, protocolVersion)
-	msg = append(msg, s.tb.HashId()...)
-	msg = append(msg, byte(op))
-	msg = append(msg, data...)
-	return msg
-}
-
 func (s *Server) Run() error {
+	err := (error)(nil)
+	defer func() {
+		err = s.m.Close()
+	}()
+
 	s.m.SendsControlToClient()
 	s.m.SendsData()
 	s.m.ListensControlToServer()
@@ -38,7 +32,7 @@ func (s *Server) Run() error {
 	ticker := time.Tick(1 * time.Second)
 
 	// Create an announcement message:
-	announcement := s.controlMessage(AnnounceTarball, nil)
+	announceMsg := controlToClientMessage(s.tb.HashId(), AnnounceTarball, nil)
 
 	// Send/recv loop:
 	for {
@@ -49,14 +43,14 @@ func (s *Server) Run() error {
 			}
 			s.processControl(ctrl)
 		case <-ticker:
-			_, err := s.m.SendControlToClient(announcement)
+			_, err := s.m.SendControlToClient(announceMsg)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	return s.m.Close()
+	return err
 }
 
 func (s *Server) processControl(ctrl UDPMessage) {

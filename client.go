@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"os"
 )
 
 type Client struct {
@@ -19,9 +20,6 @@ func NewClient(m *Multicast) *Client {
 }
 
 func (c *Client) Run() error {
-
-	ack := []byte("ack")
-
 	c.m.SendsControlToServer()
 	c.m.ListensControlToClient()
 	c.m.ListensData()
@@ -34,26 +32,37 @@ func (c *Client) Run() error {
 				return ctrl.Error
 			}
 			fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
-			if len(ctrl.Data) >= 1 {
-				switch ControlToClientOp(ctrl.Data[0]) {
-				case AnnounceTarball:
-					hashId := ctrl.Data[1:]
-					fmt.Printf("announcement: %v\n", hashId)
-				}
+
+			err := c.processControl(ctrl)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s\n", err)
 			}
 		case msg := <-c.m.Data:
 			if msg.Error != nil {
 				return msg.Error
 			}
 			fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
-
-			_, err := c.m.SendControlToServer(ack)
-			if err != nil {
-				return err
-			}
-			fmt.Printf("ctrlsent\n%s", hex.Dump(ack))
 		}
 	}
 
 	return c.m.Close()
+}
+
+func (c *Client) processControl(ctrl UDPMessage) error {
+	hashId, op, data, err := extractClientMessage(ctrl)
+	if err != nil {
+		return err
+	}
+
+	switch op {
+	case AnnounceTarball:
+		fmt.Printf("announcement\n")
+		_ = data
+		_ = hashId
+
+		// Request metadata:
+		//c.m.SendControlToServer()
+	}
+
+	return nil
 }
