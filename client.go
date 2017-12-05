@@ -22,20 +22,21 @@ func (c *Client) Run() error {
 
 	ack := []byte("ack")
 
-	go c.m.DataReceiveLoop()
-	go c.m.ControlReceiveLoop()
+	c.m.SendsControlToServer()
+	c.m.ListensControlToClient()
+	c.m.ListensData()
 
 	// Read UDP messages from multicast:
 	for {
 		select {
-		case ctrl := <-c.m.Control:
+		case ctrl := <-c.m.ControlToClient:
 			if ctrl.Error != nil {
 				return ctrl.Error
 			}
 			fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
 			if len(ctrl.Data) >= 1 {
-				switch ctrl.Data[0] {
-				case 0x01:
+				switch ControlToClientOp(ctrl.Data[0]) {
+				case AnnounceTarball:
 					hashId := ctrl.Data[1:]
 					fmt.Printf("announcement: %v\n", hashId)
 				}
@@ -46,7 +47,7 @@ func (c *Client) Run() error {
 			}
 			fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
 
-			_, err := c.m.SendControl(ack)
+			_, err := c.m.SendControlToServer(ack)
 			if err != nil {
 				return err
 			}

@@ -30,7 +30,9 @@ func (s *Server) controlMessage(op ControlToClientOp, data []byte) []byte {
 }
 
 func (s *Server) Run() error {
-	go s.m.ControlReceiveLoop()
+	s.m.SendsControlToClient()
+	s.m.SendsData()
+	s.m.ListensControlToServer()
 
 	// Tick to send a server announcement:
 	ticker := time.Tick(1 * time.Second)
@@ -41,13 +43,13 @@ func (s *Server) Run() error {
 	// Send/recv loop:
 	for {
 		select {
-		case ctrl := <-s.m.Control:
+		case ctrl := <-s.m.ControlToServer:
 			if ctrl.Error != nil {
 				return ctrl.Error
 			}
 			s.processControl(ctrl)
 		case <-ticker:
-			_, err := s.m.SendControl(announcement)
+			_, err := s.m.SendControlToClient(announcement)
 			if err != nil {
 				return err
 			}

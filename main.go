@@ -24,17 +24,8 @@ func main() {
 		}
 
 		m.SetDatagramSize(datagramSize)
-		if err != nil {
-			return nil, err
-		}
 		m.SetTTL(ttl)
-		if err != nil {
-			return nil, err
-		}
 		m.SetLoopback(loopbackEnable)
-		if err != nil {
-			return nil, err
-		}
 		return m, nil
 	}
 
