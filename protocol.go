@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -140,13 +141,12 @@ func controlToServerMessage(hashId []byte, op ControlToServerOp, data []byte) []
 
 func dataMessage(hashId []byte, region int64, data []byte) []byte {
 	msg := make([]byte, 0, 1+32+8+len(data))
-	msg = append(msg, protocolVersion)
-	msg = append(msg, hashId...)
-	msg = msg[:len(msg)+8]
-	//msg = append(msg, 0, 0, 0, 0, 0, 0, 0, 0)
-	byteOrder.PutUint64(msg, uint64(region))
-	msg = append(msg, data...)
-	return msg
+	buf := bytes.NewBuffer(msg)
+	buf.WriteByte(protocolVersion)
+	buf.Write(hashId)
+	binary.Write(buf, byteOrder, region)
+	buf.Write(data)
+	return buf.Bytes()
 }
 
 func extractClientMessage(ctrl UDPMessage) (hashId []byte, op ControlToClientOp, data []byte, err error) {

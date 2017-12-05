@@ -34,7 +34,7 @@ type Client struct {
 	metadataSections     [][]byte
 	nextSectionIndex     uint16
 
-	nakRregions NakRegions
+	nakRegions *NakRegions
 }
 
 func NewClient(m *Multicast) *Client {
@@ -303,6 +303,7 @@ func (c *Client) decodeMetadata() error {
 	if c.tb.size != size {
 		return errors.New("calculated tarball size does not match specified")
 	}
+	c.nakRegions = NewNakRegions(c.tb.size)
 
 	fmt.Print("Metadata decoded. Files:\n")
 	for _, f := range c.tb.files {
@@ -336,7 +337,7 @@ func (c *Client) processData(msg UDPMessage) error {
 	}
 
 	// ACK the region:
-	err = c.nakRregions.Ack(region, region+int64(len(data)))
+	err = c.nakRegions.Ack(region, region+int64(len(data)))
 	if err != nil {
 		return err
 	}
