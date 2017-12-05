@@ -150,13 +150,23 @@ func (m *Multicast) SendsData() error {
 }
 
 func (m *Multicast) Close() error {
-	err := m.controlToServerConn.Close()
-	if err != nil {
-		return err
+	if m.controlToServerConn != nil {
+		err := m.controlToServerConn.Close()
+		if err != nil {
+			return err
+		}
 	}
-	err = m.dataConn.Close()
-	if err != nil {
-		return err
+	if m.controlToClientConn != nil {
+		err := m.controlToClientConn.Close()
+		if err != nil {
+			return err
+		}
+	}
+	if m.dataConn != nil {
+		err := m.dataConn.Close()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
