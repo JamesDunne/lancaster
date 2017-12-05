@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"time"
 )
 
@@ -35,6 +36,7 @@ func (s *Server) Run() error {
 	}()
 
 	// Construct metadata sections:
+	fmt.Print("Starting server...\n")
 	{
 		tb := s.tb
 		mdSize := (2 + 8) + (len(tb.files) * (2 + 40 + 8 + 4 + 32))
@@ -71,7 +73,7 @@ func (s *Server) Run() error {
 
 		md := mdBuf.Bytes()
 
-		sectionSize := (s.m.datagramSize - (protocolControlPrefixSize + metadataSectionMsgSize))
+		sectionSize := (s.m.MaxMessageSize() - (protocolControlPrefixSize + metadataSectionMsgSize))
 		sectionCount := len(md) / sectionSize
 		if sectionCount*sectionSize < len(md) {
 			sectionCount++
@@ -102,13 +104,15 @@ func (s *Server) Run() error {
 		byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
 	}
 
-	s.nakRegions = NewNakRegions(s.tb.size)
-	s.regionSize = uint16(s.m.datagramSize - (protocolDataMsgSize))
+	s.regionSize = uint16(s.m.MaxMessageSize() - (protocolDataMsgSize))
 	s.nextRegion = 0
 	s.regionCount = s.tb.size / int64(s.regionSize)
 	if int64(s.regionSize)*s.regionCount < s.tb.size {
 		s.regionCount++
 	}
+	fmt.Printf("region size %v, count %v\n", s.regionSize, s.regionCount)
+
+	s.nakRegions = NewNakRegions(s.tb.size)
 
 	// Let Multicast know what channels we're interested in sending/receiving:
 	s.m.SendsControlToClient()
@@ -135,38 +139,6 @@ func (s *Server) Run() error {
 			_, err := s.m.SendControlToClient(announceMsg)
 			if err != nil {
 				return err
-			}
-		default:
-			// No clients requesting data?
-			if s.lastClientDataRequest.IsZero() {
-				continue
-			}
-			if time.Now().Sub(s.lastClientDataRequest) >= (500 * time.Millisecond) {
-				continue
-			}
-
-			// Send next region chunk out:
-			n := 0
-			buf := make([]byte, s.regionSize)
-			n, err = s.tb.ReadAt(buf, s.nextRegion)
-			if err == ErrOutOfRange {
-				continue
-			}
-			if err != nil {
-				return err
-			}
-			buf = buf[:n]
-
-			_, err = s.m.SendData(dataMessage(s.tb.HashId(), s.nextRegion, buf))
-			if err != nil {
-				return err
-			}
-
-			// TODO: Consult s.nakRegions to find out next available region to send out:
-
-			s.nextRegion++
-			if s.nextRegion >= s.regionCount {
-				s.nextRegion = 0
 			}
 		}
 	}
@@ -205,6 +177,39 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case RequestDataSections:
 		_ = data
 		s.lastClientDataRequest = time.Now()
+
+		fmt.Print("data request\n")
+
+		// Send next region chunk out:
+		n := 0
+		buf := make([]byte, s.regionSize)
+		n, err = s.tb.ReadAt(buf, s.nextRegion)
+		if err == ErrOutOfRange {
+			fmt.Printf("ReadAt: %s\n", err)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		buf = buf[:n]
+
+		fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
+		m := 0
+		dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
+		m, err = s.m.SendData(dataMsg)
+		if err != nil {
+			return err
+		}
+		if m < len(dataMsg) {
+			fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
+		}
+
+		// TODO: Consult s.nakRegions to find out next available region to send out:
+
+		s.nextRegion += int64(n)
+		if s.nextRegion >= s.tb.size {
+			s.nextRegion = 0
+		}
 	}
 
 	return nil

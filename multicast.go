@@ -71,7 +71,7 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 
 	c := &Multicast{
 		netInterface:        netInterface,
-		datagramSize:        1500,
+		datagramSize:        1200,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,
@@ -228,10 +228,14 @@ func (m *Multicast) SetLoopback(enable bool) {
 	m.loopback = enable
 }
 
+func (m *Multicast) MaxMessageSize() int {
+	return m.datagramSize - 64
+}
+
 func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) error {
 	// Start a message receive loop:
 	for {
-		buf := make([]byte, m.datagramSize)
+		buf := make([]byte, m.MaxMessageSize())
 		n, recvAddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			ch <- UDPMessage{Error: err}

@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -76,6 +77,7 @@ func (c *Client) Run() error {
 			if msg.Error != nil {
 				return msg.Error
 			}
+
 			err = c.processData(msg)
 			logError(err)
 
@@ -203,6 +205,7 @@ func (c *Client) ask() error {
 			return err
 		}
 	case ExpectDataSections:
+		fmt.Print("request data sections\n")
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestDataSections, nil))
 		if err != nil {
 			return err
@@ -218,6 +221,8 @@ func (c *Client) ask() error {
 
 func (c *Client) decodeMetadata() error {
 	// Decode all metadata sections and create a VirtualTarballWriter to download against:
+	fmt.Print("Decoding metadata...\n")
+
 	md := bytes.Join(c.metadataSections, nil)
 	mdBuf := bytes.NewBuffer(md)
 
@@ -299,12 +304,22 @@ func (c *Client) decodeMetadata() error {
 		return errors.New("calculated tarball size does not match specified")
 	}
 
+	fmt.Print("Metadata decoded. Files:\n")
+	for _, f := range c.tb.files {
+		hashStr := make([]byte, 64)
+		hex.Encode(hashStr, f.Hash)
+		fmt.Printf("  %v %v %s %s\n", f.Mode, f.Size, f.Path, string(hashStr))
+	}
+
 	return nil
 }
 
 func (c *Client) processData(msg UDPMessage) error {
+	fmt.Printf("data\n%s", hex.Dump(msg.Data))
+
 	// Not ready for data yet:
 	if c.tb == nil {
+		fmt.Print("not ready for data\n")
 		return nil
 	}
 
@@ -316,6 +331,7 @@ func (c *Client) processData(msg UDPMessage) error {
 
 	if bytes.Compare(c.hashId, hashId) != 0 {
 		// Ignore message not for us:
+		fmt.Print("data msg ignored\n")
 		return nil
 	}
 

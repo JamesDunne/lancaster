@@ -3,6 +3,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 
@@ -13,8 +14,8 @@ func main() {
 	netInterfaceName := ""
 	netInterface := (*net.Interface)(nil)
 	address := ""
-	datagramSize := 1500
-	ttl := 8
+	datagramSize := 0
+	ttl := 0
 	loopbackEnable := false
 
 	createMulticast := func() (*Multicast, error) {
@@ -53,7 +54,7 @@ func main() {
 		},
 		cli.IntFlag{
 			Name:        "datagram size,s",
-			Value:       1500,
+			Value:       1200,
 			Destination: &datagramSize,
 		},
 		cli.IntFlag{
@@ -126,6 +127,8 @@ func main() {
 				}
 
 				// Treat collection of files as virtual tarball for reading:
+				fmt.Print("Initializing metadata...\n")
+
 				tb, err := NewVirtualTarballReader(files)
 				if err != nil {
 					return err
