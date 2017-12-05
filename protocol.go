@@ -31,6 +31,7 @@ const (
 	// To-Server control messages:
 	RequestMetadataHeader = ControlToServerOp(iota)
 	RequestMetadataSection
+	RequestDataSections
 	NakDataSection
 )
 

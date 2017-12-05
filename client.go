@@ -3,6 +3,8 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -151,8 +153,12 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 				c.nextSectionIndex++
 				if c.nextSectionIndex >= c.metadataSectionCount {
-					// Done.
-					// TODO: decode metadata and create VirtualTarballWriter
+					// Done receiving all metadata sections; decode:
+					if err = c.decodeMetadata(); err != nil {
+						return err
+					}
+
+					// Start expecting data sections:
 					c.state = ExpectDataSections
 					if err = c.ask(); err != nil {
 						return err
@@ -169,6 +175,9 @@ func (c *Client) processControl(msg UDPMessage) error {
 		default:
 			// ignore
 		}
+
+	case ExpectDataSections:
+
 	}
 
 	return nil
@@ -192,12 +201,87 @@ func (c *Client) ask() error {
 		if err != nil {
 			return err
 		}
+	case ExpectDataSections:
+		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestDataSections, nil))
+		if err != nil {
+			return err
+		}
 	default:
 		return nil
 	}
 
 	// Start a timer for next ask in case this one got lost:
 	c.resendTimer = time.After(resendTimeout)
+	return nil
+}
+
+func (c *Client) decodeMetadata() error {
+	// Decode all metadata sections and create a VirtualTarballWriter to download against:
+	md := bytes.Join(c.metadataSections, nil)
+	mdBuf := bytes.NewBuffer(md)
+
+	err := error(nil)
+	readPrimitive := func(data interface{}) {
+		if err == nil {
+			err = binary.Read(mdBuf, byteOrder, data)
+		}
+	}
+	readString := func(s *string) {
+		strlen := uint16(0)
+		readPrimitive(&strlen)
+		if err == nil {
+			strbuf := make([]byte, strlen)
+			n := 0
+			n, err = mdBuf.Read(strbuf)
+			if err == nil {
+				if uint16(n) != strlen {
+					err = errors.New("unable to read string from message")
+					return
+				}
+
+				*s = string(strbuf)
+			}
+		}
+	}
+	readBytes := func(b []byte) {
+		if err == nil {
+			n := 0
+			n, err = mdBuf.Read(b)
+			if err == nil {
+				return
+			}
+			if n != len(b) {
+				err = errors.New("unable to read full []byte")
+				return
+			}
+		}
+	}
+
+	// Deserialize tarball metadata:
+	size := int64(0)
+	readPrimitive(&size)
+	fileCount := uint32(0)
+	readPrimitive(&fileCount)
+	files := make([]TarballFile, 0, fileCount)
+	for n := uint32(0); n < fileCount; n++ {
+		f := TarballFile{}
+		readString(&f.Path)
+		readPrimitive(&f.Size)
+		readPrimitive(&f.Mode)
+		f.Hash = make([]byte, 32)
+		readBytes(f.Hash)
+		files = append(files, f)
+	}
+
+	// Create a writer:
+	c.tb, err = NewVirtualTarballWriter(files, c.hashId)
+	if err != nil {
+		return err
+	}
+	if c.tb.size != size {
+		return errors.New("size does not match")
+	}
+
 	return nil
 }
 
