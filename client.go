@@ -27,7 +27,7 @@ type Client struct {
 	resendTimer <-chan time.Time
 
 	hashId      []byte
-	nakRregions nakRegions
+	nakRregions NakRegions
 }
 
 func NewClient(m *Multicast) *Client {

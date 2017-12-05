@@ -10,6 +10,7 @@ const protocolVersion = 1
 var (
 	ErrMessageTooShort      = errors.New("message too short")
 	ErrWrongProtocolVersion = errors.New("wrong protocol version")
+	ErrAckOutOfRange        = errors.New("ack out of range")
 )
 
 type ControlToClientOp byte
@@ -28,16 +29,30 @@ const (
 	NakDataSection
 )
 
-type nakRegion struct {
+type NakRegion struct {
 	start int64
 	endEx int64
 }
 
-type nakRegions []nakRegion
+type NakRegions struct {
+	naks []NakRegion
+	size int64
+}
 
-func (r *nakRegions) Clear(size int64) {
-	*r = (*r)[:0]
-	*r = append(*r, nakRegion{start: 0, endEx: size})
+func NewNakRegions(size int64) *NakRegions {
+	return &NakRegions{naks: []NakRegion{{start: 0, endEx: size}}, size: size}
+}
+
+func (r *NakRegions) Naks() []NakRegion {
+	return r.naks
+}
+
+func (r *NakRegions) Len() int {
+	return len(r.naks)
+}
+
+func (r *NakRegions) Clear() {
+	r.naks = []NakRegion{{start: 0, endEx: r.size}}
 }
 
 // [].ack(?, ?) => []
@@ -45,32 +60,42 @@ func (r *nakRegions) Clear(size int64) {
 // [(0, 10)].ack(0,  5) => [(5, 10)]
 // [(0, 10)].ack(5, 10) => [(0,  5)]
 // [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
-func (p *nakRegions) Ack(start int64, endEx int64) {
-	a := *p
-	if len(a) == 0 {
-		return
+func (r *NakRegions) Ack(start int64, endEx int64) error {
+	if start < 0 {
+		return ErrAckOutOfRange
+	}
+	if endEx > r.size {
+		return ErrAckOutOfRange
 	}
 
-	o := make([]nakRegion, 0, len(a))
+	// ACK has no effect on a fully-acked region:
+	a := r.naks
+	if len(a) == 0 {
+		return nil
+	}
+
+	// ACK a range by creating a modified NAK ranges:
+	o := make([]NakRegion, 0, len(a))
 	for _, k := range a {
 		if start == k.start && endEx == k.endEx {
 			// remove this range from output; i.e. dont add it.
 		} else if start > k.start && endEx < k.endEx {
 			// [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
-			o = append(o, nakRegion{k.start, start})
-			o = append(o, nakRegion{endEx, k.endEx})
+			o = append(o, NakRegion{k.start, start})
+			o = append(o, NakRegion{endEx, k.endEx})
 		} else if start > k.start && endEx == k.endEx {
 			// [(0, 10)].ack(5, 10) => [(0,  5)]
-			o = append(o, nakRegion{k.start, start})
+			o = append(o, NakRegion{k.start, start})
 		} else if start == k.start && endEx < k.endEx {
 			// [(0, 10)].ack(0,  5) => [(5, 10)]
-			o = append(o, nakRegion{endEx, k.endEx})
+			o = append(o, NakRegion{endEx, k.endEx})
 		} else {
 			o = append(o, k)
 		}
 	}
 
-	*p = o
+	r.naks = o
+	return nil
 }
 
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
