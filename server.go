@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"time"
 )
 
@@ -13,8 +15,6 @@ type Server struct {
 	metadataHeader   []byte
 	metadataSections [][]byte
 }
-
-const metadataSectionMsgSize = 2
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
@@ -87,13 +87,15 @@ func (s *Server) Run() error {
 			byteOrder.PutUint16(ms[0:2], uint16(n))
 			ms = append(ms, md[o:e]...)
 
+			fmt.Printf("%s", hex.Dump(ms))
+
 			// Add section to list:
 			s.metadataSections = append(s.metadataSections, ms)
 			o += e
 		}
 
 		// Create metadata header to describe how many sections there are:
-		s.metadataHeader = make([]byte, metadataSectionMsgSize)
+		s.metadataHeader = make([]byte, metadataHeaderMsgSize)
 		byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
 	}
 
@@ -156,10 +158,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 
 		// Compose a metadata section message with leading index:
 		section := s.metadataSections[sectionIndex]
-		ms := make([]byte, metadataSectionMsgSize+len(section))
-		byteOrder.PutUint16(ms, sectionIndex)
-		ms = append(ms, section...)
-		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, ms))
+		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	}
 
 	return nil

@@ -10,6 +10,9 @@ import (
 const protocolVersion = 1
 const protocolPrefixSize = 1 + 32 + 1
 
+const metadataSectionMsgSize = 2
+const metadataHeaderMsgSize = 2
+
 var (
 	ErrMessageTooShort      = errors.New("message too short")
 	ErrWrongProtocolVersion = errors.New("wrong protocol version")

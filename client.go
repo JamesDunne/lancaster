@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -149,7 +150,9 @@ func (c *Client) processControl(msg UDPMessage) error {
 			fmt.Printf("metadata section\n")
 			sectionIndex := byteOrder.Uint16(data[0:2])
 			if sectionIndex == c.nextSectionIndex {
-				c.metadataSections[sectionIndex] = data[2:]
+				c.metadataSections[sectionIndex] = make([]byte, len(data[2:]))
+				copy(c.metadataSections[sectionIndex], data[2:])
+				fmt.Printf("%s", hex.Dump(c.metadataSections[sectionIndex]))
 
 				c.nextSectionIndex++
 				if c.nextSectionIndex >= c.metadataSectionCount {
@@ -227,27 +230,35 @@ func (c *Client) decodeMetadata() error {
 		}
 	}
 	readString := func(s *string) {
+		if err != nil {
+			return
+		}
+
 		strlen := uint16(0)
 		readPrimitive(&strlen)
-		if err == nil {
-			strbuf := make([]byte, strlen)
-			n := 0
-			n, err = mdBuf.Read(strbuf)
-			if err == nil {
-				if uint16(n) != strlen {
-					err = errors.New("unable to read string from message")
-					return
-				}
-
-				*s = string(strbuf)
-			}
+		if err != nil {
+			return
 		}
+
+		strbuf := make([]byte, strlen)
+		n := 0
+		n, err = mdBuf.Read(strbuf)
+		if err != nil {
+			return
+		}
+
+		if uint16(n) != strlen {
+			err = errors.New("unable to read string from message")
+			return
+		}
+
+		*s = string(strbuf)
 	}
 	readBytes := func(b []byte) {
 		if err == nil {
 			n := 0
 			n, err = mdBuf.Read(b)
-			if err == nil {
+			if err != nil {
 				return
 			}
 			if n != len(b) {
@@ -262,6 +273,10 @@ func (c *Client) decodeMetadata() error {
 	readPrimitive(&size)
 	fileCount := uint32(0)
 	readPrimitive(&fileCount)
+	if err != nil {
+		return err
+	}
+
 	files := make([]TarballFile, 0, fileCount)
 	for n := uint32(0); n < fileCount; n++ {
 		f := TarballFile{}
@@ -270,6 +285,10 @@ func (c *Client) decodeMetadata() error {
 		readPrimitive(&f.Mode)
 		f.Hash = make([]byte, 32)
 		readBytes(f.Hash)
+		if err != nil {
+			return err
+		}
+
 		files = append(files, f)
 	}
 
@@ -279,8 +298,10 @@ func (c *Client) decodeMetadata() error {
 		return err
 	}
 	if c.tb.size != size {
-		return errors.New("size does not match")
+		return errors.New("calculated tarball size does not match specified")
 	}
+
+	fmt.Printf("%+v\n", c.tb.files)
 
 	return nil
 }
