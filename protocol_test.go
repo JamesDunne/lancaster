@@ -98,3 +98,55 @@ func TestNakRegions_Ack5(t *testing.T) {
 		t.Fatal("r[1].endEx != 10")
 	}
 }
+
+// [(0, 20)].ack(0,  5).ack(5, 10) => [(10, 20)]
+func TestNakRegions_Ack6(t *testing.T) {
+	r := nakRegions(make([]nakRegion, 0, 1))
+	r.Clear(20)
+	r.Ack(0, 5)
+	r.Ack(5, 10)
+	if len(r) != 1 {
+		t.Fatal("len(r) != 1")
+	}
+	if r[0].start != 10 {
+		t.Fatal("r[0].start != 10")
+	}
+	if r[0].endEx != 20 {
+		t.Fatal("r[0].endEx != 20")
+	}
+}
+
+// [(0, 20)].ack(15, 20).ack(10, 15) => [(0, 10)]
+func TestNakRegions_Ack7(t *testing.T) {
+	r := nakRegions(make([]nakRegion, 0, 1))
+	r.Clear(20)
+	r.Ack(15, 20)
+	r.Ack(10, 15)
+	if len(r) != 1 {
+		t.Fatal("len(r) != 1")
+	}
+	if r[0].start != 0 {
+		t.Fatal("r[0].start != 0")
+	}
+	if r[0].endEx != 10 {
+		t.Fatal("r[0].endEx != 10")
+	}
+}
+
+// [(0, 20)].ack(15, 20).ack(10, 15).ack(0, 5) => [(5, 10)]
+func TestNakRegions_Ack8(t *testing.T) {
+	r := nakRegions(make([]nakRegion, 0, 1))
+	r.Clear(20)
+	r.Ack(15, 20)
+	r.Ack(10, 15)
+	r.Ack(0, 5)
+	if len(r) != 1 {
+		t.Fatal("len(r) != 1")
+	}
+	if r[0].start != 5 {
+		t.Fatal("r[0].start != 5")
+	}
+	if r[0].endEx != 10 {
+		t.Fatal("r[0].endEx != 10")
+	}
+}
