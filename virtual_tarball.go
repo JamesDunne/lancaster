@@ -68,7 +68,7 @@ func hashFile(path string) ([]byte, error) {
 		if err == io.EOF && n == 0 && tn == 0 {
 			return zeroHash[:], nil
 		}
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		n, err = h.Write(buf[:n])

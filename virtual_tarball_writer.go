@@ -74,7 +74,7 @@ func (t *VirtualTarballWriter) Close() error {
 }
 
 // io.WriterAt:
-func (t *VirtualTarballReader) WriteAt(buf []byte, offset int64) (int, error) {
+func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 	if buf == nil {
 		return 0, ErrNilBuffer
 	}

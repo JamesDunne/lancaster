@@ -88,12 +88,6 @@ func (t *VirtualTarballReader) Close() error {
 				return err
 			}
 		}
-		if tf.writer != nil {
-			err := tf.writer.Close()
-			if err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }

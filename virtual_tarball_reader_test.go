@@ -7,15 +7,15 @@ import (
 	"testing"
 )
 
-func newTarball(t *testing.T, files []TarballFile) *VirtualTarballReader {
-	tb, err := NewTarball(files)
+func newTarballReader(t *testing.T, files []TarballFile) *VirtualTarballReader {
+	tb, err := NewVirtualTarballReader(files)
 	if err != nil {
 		panic(err)
 	}
 	return tb
 }
 
-func closeTarball(t *testing.T, tb *VirtualTarballReader) {
+func closeTarballReader(t *testing.T, tb *VirtualTarballReader) {
 	err := tb.Close()
 	if err != nil {
 		t.Fatalf("Error closing: %v", err)
@@ -30,8 +30,8 @@ func closeTarball(t *testing.T, tb *VirtualTarballReader) {
 func TestTarball_Nop(t *testing.T) {
 	files := []TarballFile{}
 
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
+	tb := newTarballReader(t, files)
+	defer closeTarballReader(t, tb)
 }
 
 func TestTarball_BadPath1(t *testing.T) {
@@ -41,7 +41,7 @@ func TestTarball_BadPath1(t *testing.T) {
 		},
 	}
 
-	_, err := NewTarball(files)
+	_, err := NewVirtualTarballReader(files)
 	if err == nil {
 		t.Fatal("Expected non-nil error")
 	}
@@ -79,8 +79,8 @@ func TestReadAt_OneFile(t *testing.T) {
 		},
 	}
 
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
+	tb := newTarballReader(t, files)
+	defer closeTarballReader(t, tb)
 
 	buf := make([]byte, len(testMessage))
 	n, err := tb.ReadAt(buf, 0)
@@ -145,8 +145,8 @@ func TestReadAt_SpanningFiles(t *testing.T) {
 		},
 	}
 
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
+	tb := newTarballReader(t, files)
+	defer closeTarballReader(t, tb)
 
 	expectedMessage := []byte(testString + testString)
 	expectedLen := len(expectedMessage)

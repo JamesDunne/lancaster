@@ -1,21 +1,19 @@
 package main
 
 import (
-	"bytes"
-	"io/ioutil"
 	"os"
 	"testing"
 )
 
-func newTarball(t *testing.T, files []TarballFile) *VirtualTarballWriter {
-	tb, err := NewVirtualTarballWriter(files)
+func newTarballWriter(t *testing.T, files []TarballFile) *VirtualTarballWriter {
+	tb, err := NewVirtualTarballWriter(files, nil)
 	if err != nil {
 		panic(err)
 	}
 	return tb
 }
 
-func closeTarball(t *testing.T, tb *VirtualTarballWriter) {
+func closeTarballWriter(t *testing.T, tb *VirtualTarballWriter) {
 	err := tb.Close()
 	if err != nil {
 		t.Fatalf("Error closing: %v", err)
@@ -36,8 +34,8 @@ func TestWriteAt_OneFile(t *testing.T) {
 		},
 	}
 
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
+	tb := newTarballWriter(t, files)
+	defer closeTarballWriter(t, tb)
 
 	n, err := tb.WriteAt([]byte("hi\n"), 0)
 	if err != nil {
@@ -62,8 +60,8 @@ func TestWriteAt_SpanningFiles(t *testing.T) {
 		},
 	}
 
-	tb := newTarball(t, files)
-	defer closeTarball(t, tb)
+	tb := newTarballWriter(t, files)
+	defer closeTarballWriter(t, tb)
 
 	n, err := tb.WriteAt([]byte("Hello, world!\n"), 0)
 	if err != nil {
