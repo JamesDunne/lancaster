@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -14,6 +12,13 @@ type Server struct {
 
 	metadataHeader   []byte
 	metadataSections [][]byte
+
+	lastClientDataRequest time.Time
+
+	nakRegions  *NakRegions
+	nextRegion  int64
+	regionSize  uint16
+	regionCount int64
 }
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
@@ -66,7 +71,7 @@ func (s *Server) Run() error {
 
 		md := mdBuf.Bytes()
 
-		sectionSize := (s.m.datagramSize - (protocolPrefixSize + metadataSectionMsgSize))
+		sectionSize := (s.m.datagramSize - (protocolControlPrefixSize + metadataSectionMsgSize))
 		sectionCount := len(md) / sectionSize
 		if sectionCount*sectionSize < len(md) {
 			sectionCount++
@@ -87,8 +92,6 @@ func (s *Server) Run() error {
 			byteOrder.PutUint16(ms[0:2], uint16(n))
 			ms = append(ms, md[o:e]...)
 
-			fmt.Printf("%s", hex.Dump(ms))
-
 			// Add section to list:
 			s.metadataSections = append(s.metadataSections, ms)
 			o += e
@@ -97,6 +100,14 @@ func (s *Server) Run() error {
 		// Create metadata header to describe how many sections there are:
 		s.metadataHeader = make([]byte, metadataHeaderMsgSize)
 		byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
+	}
+
+	s.nakRegions = NewNakRegions(s.tb.size)
+	s.regionSize = uint16(s.m.datagramSize - (protocolDataPrefixSize + regionMessagePrefixSize))
+	s.nextRegion = 0
+	s.regionCount = s.tb.size / int64(s.regionSize)
+	if int64(s.regionSize)*s.regionCount < s.tb.size {
+		s.regionCount++
 	}
 
 	// Let Multicast know what channels we're interested in sending/receiving:
@@ -124,6 +135,35 @@ func (s *Server) Run() error {
 			_, err := s.m.SendControlToClient(announceMsg)
 			if err != nil {
 				return err
+			}
+		default:
+			// No clients requesting data?
+			if s.lastClientDataRequest.IsZero() {
+				continue
+			}
+			if time.Now().Sub(s.lastClientDataRequest) >= (500 * time.Millisecond) {
+				continue
+			}
+
+			// Send next region chunk out:
+			n := 0
+			buf := make([]byte, s.regionSize)
+			n, err = s.tb.ReadAt(buf, s.nextRegion)
+			if err != nil {
+				return err
+			}
+			buf = buf[:n]
+
+			_, err = s.m.SendData(dataMessage(s.tb.HashId(), s.nextRegion, buf))
+			if err != nil {
+				return err
+			}
+
+			// TODO: Consult s.nakRegions to find out next available region to send out:
+
+			s.nextRegion++
+			if s.nextRegion >= s.regionCount {
+				s.nextRegion = 0
 			}
 		}
 	}
@@ -156,9 +196,12 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			return nil
 		}
 
-		// Compose a metadata section message with leading index:
+		// Send metadata section message:
 		section := s.metadataSections[sectionIndex]
 		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
+	case RequestDataSections:
+		_ = data
+		s.lastClientDataRequest = time.Now()
 	}
 
 	return nil

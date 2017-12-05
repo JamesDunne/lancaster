@@ -4,7 +4,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -152,7 +151,6 @@ func (c *Client) processControl(msg UDPMessage) error {
 			if sectionIndex == c.nextSectionIndex {
 				c.metadataSections[sectionIndex] = make([]byte, len(data[2:]))
 				copy(c.metadataSections[sectionIndex], data[2:])
-				fmt.Printf("%s", hex.Dump(c.metadataSections[sectionIndex]))
 
 				c.nextSectionIndex++
 				if c.nextSectionIndex >= c.metadataSectionCount {
@@ -300,8 +298,6 @@ func (c *Client) decodeMetadata() error {
 	if c.tb.size != size {
 		return errors.New("calculated tarball size does not match specified")
 	}
-
-	fmt.Printf("%+v\n", c.tb.files)
 
 	return nil
 }
