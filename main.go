@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/urfave/cli"
 )
@@ -19,6 +18,27 @@ func main() {
 	datagramSize := 1500
 	ttl := 8
 	loopbackEnable := false
+
+	createMulticast := func() (*Multicast, error) {
+		m, err := NewMulticast(address, netInterface)
+		if err != nil {
+			return nil, err
+		}
+
+		m.SetDatagramSize(datagramSize)
+		if err != nil {
+			return nil, err
+		}
+		m.SetTTL(ttl)
+		if err != nil {
+			return nil, err
+		}
+		m.SetLoopback(loopbackEnable)
+		if err != nil {
+			return nil, err
+		}
+		return m, nil
+	}
 
 	app := cli.NewApp()
 
@@ -74,23 +94,11 @@ func main() {
 			Aliases: []string{"d"},
 			Usage:   "download files from a multicast group locally",
 			Action: func(c *cli.Context) error {
-				m, err := NewMulticast(address, netInterface)
+				m, err := createMulticast()
 				if err != nil {
 					return err
 				}
 
-				m.SetDatagramSize(datagramSize)
-				if err != nil {
-					return err
-				}
-				m.SetTTL(ttl)
-				if err != nil {
-					return err
-				}
-				m.SetLoopback(loopbackEnable)
-				if err != nil {
-					return err
-				}
 				//local := c.Args().First()
 
 				ack := []byte("ack")
@@ -171,52 +179,14 @@ func main() {
 					return err
 				}
 
-				m, err := NewMulticast(address, netInterface)
+				m, err := createMulticast()
 				if err != nil {
 					return err
 				}
 
-				m.SetDatagramSize(datagramSize)
-				if err != nil {
-					return err
-				}
-				m.SetTTL(ttl)
-				if err != nil {
-					return err
-				}
-				m.SetLoopback(loopbackEnable)
-				if err != nil {
-					return err
-				}
-
-				go m.ControlReceiveLoop()
-
-				// Tick to send a server announcement:
-				ticker := time.Tick(1 * time.Second)
-
-				// Create an announcement message:
-				announcement := make([]byte, 0, 1+32)
-				announcement = append(announcement, byte(0x01))
-				announcement = append(announcement, tb.HashId()...)
-
-				// Send/recv loop:
-				for {
-					select {
-					case msgi := <-m.Control:
-						if msgi.Error != nil {
-							return msgi.Error
-						}
-						fmt.Printf("ctrlrecv\n%s", hex.Dump(msgi.Data))
-					case <-ticker:
-						_, err := m.SendControl(announcement)
-						if err != nil {
-							return err
-						}
-					}
-				}
-
-				err = m.controlConn.Close()
-				return err
+				// Create server and run loop:
+				s := NewServer(m, tb)
+				return s.Run()
 			},
 		},
 	}

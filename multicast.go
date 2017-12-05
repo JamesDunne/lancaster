@@ -6,6 +6,21 @@ import (
 	"syscall"
 )
 
+// Control messages:
+const (
+	_ = iota
+	Announce
+	RequestMetadata
+	AcknowledgeSection
+)
+
+// Data messages:
+const (
+	_ = iota
+	MetadataSection
+	DataSection
+)
+
 type UDPMessage struct {
 	Error error
 
@@ -57,6 +72,18 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 		make(chan UDPMessage),
 	}
 	return c, nil
+}
+
+func (m *Multicast) Close() error {
+	err := m.controlConn.Close()
+	if err != nil {
+		return err
+	}
+	err = m.dataConn.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *Multicast) SetDatagramSize(datagramSize int) error {
