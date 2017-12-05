@@ -16,7 +16,7 @@ type Server struct {
 	metadataSections [][]byte
 }
 
-const metadataSectionMsgPrefixSize = 36
+const metadataSectionMsgSize = 2
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
@@ -70,7 +70,7 @@ func (s *Server) Run() error {
 		md := mdBuf.Bytes()
 		fmt.Printf("md\n%s", hex.Dump(md))
 
-		sectionSize := (s.m.datagramSize - protocolPrefixSize - metadataSectionMsgPrefixSize)
+		sectionSize := (s.m.datagramSize - (protocolPrefixSize + metadataSectionMsgSize))
 		sectionCount := len(md) / sectionSize
 		if sectionCount*sectionSize < len(md) {
 			sectionCount++
@@ -80,16 +80,29 @@ func (s *Server) Run() error {
 		s.metadataSections = make([][]byte, 0, sectionCount)
 		o := 0
 		for n := 0; n < sectionCount; n++ {
-			l := o + sectionSize
-			if l > len(md) {
-				l = len(md) - o
+			// Determine end point of metadata slice:
+			e := o + sectionSize
+			if e > len(md) {
+				e = len(md)
 			}
-			s.metadataSections = append(s.metadataSections, md[o:l])
-			o += l
+
+			// Prepend section with uint16 of `n`:
+			ms := make([]byte, metadataSectionMsgSize, metadataSectionMsgSize+(e-o))
+			byteOrder.PutUint16(ms[0:2], uint16(n))
+			ms = append(ms, md[o:e]...)
+
+			// Add section to list:
+			s.metadataSections = append(s.metadataSections, ms)
+			o += e
 		}
 		fmt.Printf("%v\n", s.metadataSections)
+
+		// Create metadata header to describe how many sections there are:
+		s.metadataHeader = make([]byte, metadataSectionMsgSize)
+		byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
 	}
 
+	// Let Multicast know what channels we're interested in sending/receiving:
 	s.m.SendsControlToClient()
 	s.m.SendsData()
 	s.m.ListensControlToServer()
@@ -107,8 +120,10 @@ func (s *Server) Run() error {
 			if ctrl.Error != nil {
 				return ctrl.Error
 			}
+			// Process client requests:
 			s.processControl(ctrl)
 		case <-ticker:
+			// Announce transfer available:
 			_, err := s.m.SendControlToClient(announceMsg)
 			if err != nil {
 				return err
@@ -137,6 +152,19 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 
 		// Compose metadata header and send to clients:
 		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataHeader, s.metadataHeader))
+	case RequestMetadataSection:
+		sectionIndex := binary.LittleEndian.Uint16(data[0:2])
+		if sectionIndex >= uint16(len(s.metadataSections)) {
+			// Out of range
+			return nil
+		}
+
+		// Compose a metadata section message with leading index:
+		section := s.metadataSections[sectionIndex]
+		ms := make([]byte, metadataSectionMsgSize+len(section))
+		binary.LittleEndian.PutUint16(ms, sectionIndex)
+		ms = append(ms, section...)
+		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, ms))
 	}
 
 	return nil
