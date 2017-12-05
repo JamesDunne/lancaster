@@ -2,6 +2,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 )
 
@@ -28,6 +29,18 @@ const (
 	RequestMetadataSection
 	NakDataSection
 )
+
+type TarballFileMetadata struct {
+	Path string
+	Size int64
+	Mode uint32
+	Hash [sha256.Size]byte
+}
+
+type TarballMetadata struct {
+	Files []TarballFileMetadata
+	Size  int64
+}
 
 type NakRegion struct {
 	start int64
@@ -129,6 +142,24 @@ func extractClientMessage(ctrl UDPMessage) (hashId []byte, op ControlToClientOp,
 
 	hashId = ctrl.Data[1:33]
 	op = ControlToClientOp(ctrl.Data[33])
+	data = ctrl.Data[34:]
+
+	return
+}
+
+func extractServerMessage(ctrl UDPMessage) (hashId []byte, op ControlToServerOp, data []byte, err error) {
+	if len(ctrl.Data) < 34 {
+		err = ErrMessageTooShort
+		return
+	}
+
+	if ctrl.Data[0] != protocolVersion {
+		err = ErrWrongProtocolVersion
+		return
+	}
+
+	hashId = ctrl.Data[1:33]
+	op = ControlToServerOp(ctrl.Data[33])
 	data = ctrl.Data[34:]
 
 	return

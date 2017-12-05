@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -97,10 +98,11 @@ func (c *Client) processControl(msg UDPMessage) error {
 		switch op {
 		case AnnounceTarball:
 			fmt.Printf("announcement\n")
+			// TODO: add some sort of subscribe feature for end users in case of multiple transfers
 			c.hashId = hashId
 			_ = data
 
-			// Request metadata:
+			// Request metadata header:
 			c.state = ExpectMetadataHeader
 			if err = c.ask(); err != nil {
 				return err
@@ -112,12 +114,15 @@ func (c *Client) processControl(msg UDPMessage) error {
 	case ExpectMetadataHeader:
 		switch op {
 		case RespondMetadataHeader:
-			fmt.Printf("announcement\n")
-			c.hashId = hashId
+			fmt.Printf("metadata header\n")
+			if bytes.Compare(c.hashId, hashId) != 0 {
+				// Ignore message not for us:
+				return nil
+			}
 			_ = data
 
-			// Request metadata:
-			c.state = ExpectMetadataHeader
+			// Request metadata sections:
+			c.state = ExpectMetadataSections
 			if err = c.ask(); err != nil {
 				return err
 			}
