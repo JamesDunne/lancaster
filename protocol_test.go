@@ -150,3 +150,27 @@ func TestNakRegions_Ack8(t *testing.T) {
 		t.Fatal("r[0].endEx != 10")
 	}
 }
+
+// [(0, 20)].ack(15, 19).ack(10, 15).ack(0, 5) => [(5, 10), (19, 20)]
+func TestNakRegions_Ack9(t *testing.T) {
+	r := nakRegions(make([]nakRegion, 0, 1))
+	r.Clear(20)
+	r.Ack(15, 19)
+	r.Ack(10, 15)
+	r.Ack(0, 5)
+	if len(r) != 2 {
+		t.Fatal("len(r) != 2")
+	}
+	if r[0].start != 5 {
+		t.Fatal("r[0].start != 5")
+	}
+	if r[0].endEx != 10 {
+		t.Fatal("r[0].endEx != 10")
+	}
+	if r[1].start != 19 {
+		t.Fatal("r[19].start != 19")
+	}
+	if r[1].endEx != 20 {
+		t.Fatal("r[20].endEx != 20")
+	}
+}
