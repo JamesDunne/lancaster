@@ -147,11 +147,6 @@ func (s *Server) buildMetadata() error {
 			_, err = mdBuf.WriteString(s)
 		}
 	}
-	writeBytes := func(b []byte) {
-		if err == nil {
-			_, err = mdBuf.Write(b)
-		}
-	}
 
 	writePrimitive(tb.size)
 	writePrimitive(uint32(len(tb.files)))
@@ -160,7 +155,6 @@ func (s *Server) buildMetadata() error {
 		writeString(f.Path)
 		writePrimitive(f.Size)
 		writePrimitive(f.Mode)
-		writeBytes(f.Hash)
 		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
 	}
 	if err != nil {

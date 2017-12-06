@@ -317,19 +317,6 @@ func (c *Client) decodeMetadata() error {
 
 		*s = string(strbuf)
 	}
-	readBytes := func(b []byte) {
-		if err == nil {
-			n := 0
-			n, err = mdBuf.Read(b)
-			if err != nil {
-				return
-			}
-			if n != len(b) {
-				err = errors.New("unable to read full []byte")
-				return
-			}
-		}
-	}
 
 	// Deserialize tarball metadata:
 	size := int64(0)
@@ -346,8 +333,6 @@ func (c *Client) decodeMetadata() error {
 		readString(&f.Path)
 		readPrimitive(&f.Size)
 		readPrimitive(&f.Mode)
-		f.Hash = make([]byte, 32)
-		readBytes(f.Hash)
 		if err != nil {
 			return err
 		}

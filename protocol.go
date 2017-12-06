@@ -9,8 +9,9 @@ import (
 )
 
 const protocolVersion = 1
-const protocolControlPrefixSize = 1 + 32 + 1
-const protocolDataMsgSize = 1 + 32 + 8
+const hashSize = 32
+const protocolControlPrefixSize = 1 + hashSize + 1
+const protocolDataMsgSize = 1 + hashSize + 8
 
 const metadataSectionMsgSize = 2
 const metadataHeaderMsgSize = 2
@@ -154,7 +155,7 @@ func (r *NakRegions) Ack(start int64, endEx int64) error {
 }
 
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
-	msg := make([]byte, 0, 1+32+1+len(data))
+	msg := make([]byte, 0, protocolControlPrefixSize+len(data))
 	msg = append(msg, protocolVersion)
 	msg = append(msg, hashId...)
 	msg = append(msg, byte(op))
@@ -163,7 +164,7 @@ func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []
 }
 
 func controlToServerMessage(hashId []byte, op ControlToServerOp, data []byte) []byte {
-	msg := make([]byte, 0, 1+32+1+len(data))
+	msg := make([]byte, 0, protocolControlPrefixSize+len(data))
 	msg = append(msg, protocolVersion)
 	msg = append(msg, hashId...)
 	msg = append(msg, byte(op))
@@ -181,8 +182,8 @@ func dataMessage(hashId []byte, region int64, data []byte) []byte {
 	return buf.Bytes()
 }
 
-func extractClientMessage(ctrl UDPMessage) (hashId []byte, op ControlToClientOp, data []byte, err error) {
-	if len(ctrl.Data) < 34 {
+func extractControlMessage(ctrl UDPMessage) (hashId []byte, op byte, data []byte, err error) {
+	if len(ctrl.Data) < protocolControlPrefixSize {
 		err = ErrMessageTooShort
 		return
 	}
@@ -192,10 +193,17 @@ func extractClientMessage(ctrl UDPMessage) (hashId []byte, op ControlToClientOp,
 		return
 	}
 
-	hashId = ctrl.Data[1:33]
-	op = ControlToClientOp(ctrl.Data[33])
-	data = ctrl.Data[34:]
+	hashId = ctrl.Data[1 : 1+hashSize]
+	op = ctrl.Data[1+hashSize]
+	data = ctrl.Data[protocolControlPrefixSize:]
 
+	return
+}
+
+func extractClientMessage(ctrl UDPMessage) (hashId []byte, op ControlToClientOp, data []byte, err error) {
+	var opByte byte
+	hashId, opByte, data, err = extractControlMessage(ctrl)
+	op = ControlToClientOp(opByte)
 	return
 }
 
