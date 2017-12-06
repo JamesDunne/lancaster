@@ -23,6 +23,10 @@ type Server struct {
 	nextRegion  int64
 	regionSize  uint16
 	regionCount int64
+
+	bytesSent     int64
+	bytesSentLast int64
+	timeLast      time.Time
 }
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
@@ -64,6 +68,9 @@ func (s *Server) Run() error {
 	// Create an announcement message:
 	s.announceMsg = controlToClientMessage(s.tb.HashId(), AnnounceTarball, nil)
 
+	// Create a one-second ticker for reporting:
+	oneSecond := time.Tick(time.Second)
+
 	// Send/recv loop:
 	fmt.Print("Started server\n")
 	for {
@@ -80,10 +87,23 @@ func (s *Server) Run() error {
 			if err != nil {
 				return err
 			}
+		case <-oneSecond:
+			s.reportBandwidth()
 		}
 	}
 
 	return err
+}
+
+func (s *Server) reportBandwidth() {
+	byteCount := s.bytesSent - s.bytesSentLast
+	rightMeow := time.Now()
+	sec := rightMeow.Sub(s.timeLast).Seconds()
+
+	fmt.Printf("%15.2f B/s     \r", float64(byteCount)/sec)
+
+	s.bytesSentLast = s.bytesSent
+	s.timeLast = rightMeow
 }
 
 func (s *Server) sendData() error {
@@ -112,6 +132,8 @@ func (s *Server) sendData() error {
 	if m < len(dataMsg) {
 		fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
 	}
+
+	s.bytesSent += int64(m)
 
 	// Advance to next region:
 	s.nextRegion += int64(n)
