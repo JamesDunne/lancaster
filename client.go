@@ -206,8 +206,8 @@ func (c *Client) ask() error {
 			return err
 		}
 	case ExpectDataSections:
-		//fmt.Print("request data sections\n")
 		// Send the last ACK:
+		fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
 		binary.Write(buf, byteOrder, c.lastAck.start)
 		binary.Write(buf, byteOrder, c.lastAck.endEx)

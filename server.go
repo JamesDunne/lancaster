@@ -18,7 +18,6 @@ type Server struct {
 	metadataSections [][]byte
 
 	lastClientDataRequest time.Time
-	enableDataSend        chan time.Time
 
 	nakRegions  *NakRegions
 	nextRegion  int64
@@ -66,9 +65,6 @@ func (s *Server) Run() error {
 	// Create an announcement message:
 	s.announceMsg = controlToClientMessage(s.tb.HashId(), AnnounceTarball, nil)
 
-	// Channel to trigger enable data-sending mode:
-	s.enableDataSend = make(chan time.Time, 1)
-
 	// Send/recv loop:
 	for {
 		select {
@@ -84,80 +80,50 @@ func (s *Server) Run() error {
 			if err != nil {
 				return err
 			}
-		case <-s.enableDataSend:
-			// Switch to data-sending mode:
-			if err = s.sendLoop(); err != nil {
-				return err
-			}
 		}
 	}
 
 	return err
 }
 
-func (s *Server) sendLoop() error {
+func (s *Server) sendData() error {
 	err := error(nil)
-	stopSendingTimer := time.After(2 * time.Second)
-
-	for {
-		select {
-		case ctrl := <-s.m.ControlToServer:
-			if ctrl.Error != nil {
-				return ctrl.Error
-			}
-			// Process client requests:
-			s.processControl(ctrl)
-		case <-s.announceTicker:
-			// Announce transfer available:
-			_, err := s.m.SendControlToClient(s.announceMsg)
-			if err != nil {
-				return err
-			}
-		case <-s.enableDataSend:
-			// Extend timer to keep sending data:
-			stopSendingTimer = time.After(2 * time.Second)
-		case <-stopSendingTimer:
-			// Disable data sending mode and go back to announcement mode:
-			return nil
-		default:
-			// Send next region chunk out:
-			n := 0
-			buf := make([]byte, s.regionSize)
-			n, err = s.tb.ReadAt(buf, s.nextRegion)
-			if err == ErrOutOfRange {
-				fmt.Printf("ReadAt: %s\n", err)
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			buf = buf[:n]
-
-			fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
-			m := 0
-			dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
-			m, err = s.m.SendData(dataMsg)
-			if err != nil {
-				return err
-			}
-			if m < len(dataMsg) {
-				fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
-			}
-
-			// Advance to next region:
-			s.nextRegion += int64(n)
-			if s.nextRegion >= s.tb.size {
-				s.nextRegion = 0
-			}
-
-			// Filter it out of NAKed regions:
-			nextNak := s.nakRegions.NextNakRegion(s.nextRegion)
-			if nextNak == -1 {
-				return nil
-			}
-			s.nextRegion = nextNak
-		}
+	// Send next region chunk out:
+	n := 0
+	buf := make([]byte, s.regionSize)
+	n, err = s.tb.ReadAt(buf, s.nextRegion)
+	if err == ErrOutOfRange {
+		fmt.Printf("ReadAt: %s\n", err)
+		return nil
 	}
+	if err != nil {
+		return err
+	}
+	buf = buf[:n]
+
+	fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
+	m := 0
+	dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
+	m, err = s.m.SendData(dataMsg)
+	if err != nil {
+		return err
+	}
+	if m < len(dataMsg) {
+		fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
+	}
+
+	// Advance to next region:
+	s.nextRegion += int64(n)
+	if s.nextRegion >= s.tb.size {
+		s.nextRegion = 0
+	}
+
+	// Filter it out of NAKed regions:
+	nextNak := s.nakRegions.NextNakRegion(s.nextRegion)
+	if nextNak == -1 {
+		return nil
+	}
+	s.nextRegion = nextNak
 
 	return nil
 }
@@ -268,8 +234,9 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			endEx: int64(byteOrder.Uint64(data[8:16])),
 		}
 		s.nakRegions.Ack(ack.start, ack.endEx)
-		// Keep data-send mode alive:
-		s.enableDataSend <- time.Now()
+		fmt.Printf("ack: [%v %v]\n", ack.start, ack.endEx)
+		// Send next region:
+		return s.sendData()
 	}
 
 	return nil
