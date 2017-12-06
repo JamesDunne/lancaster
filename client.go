@@ -80,6 +80,9 @@ func (c *Client) Run() error {
 
 			err = c.processControl(msg)
 			logError(err)
+			if c.state == Done {
+				break
+			}
 
 		case msg := <-c.m.Data:
 			if msg.Error != nil {
@@ -88,6 +91,9 @@ func (c *Client) Run() error {
 
 			err = c.processData(msg)
 			logError(err)
+			if c.state == Done {
+				break
+			}
 
 		case <-c.resendTimer:
 			// Resend a request that might have gotten lost:
@@ -99,14 +105,22 @@ func (c *Client) Run() error {
 
 		case <-oneSecond:
 			// Measure receive bandwidth:
-			bytesPerSec := c.bytesReceived - c.lastBytesReceived
+			byteCount := c.bytesReceived - c.lastBytesReceived
 			rightMeow := time.Now()
 			sec := rightMeow.Sub(c.lastTime).Seconds()
 
-			fmt.Printf("%f b/s\r", float64(bytesPerSec)/float64(sec))
+			pct := float64(0.0)
+			if c.nakRegions != nil {
+				pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
+			}
+			fmt.Printf("%15.2f b/s     %5.2f%% complete    \r", float64(byteCount)/sec, pct)
 
 			c.lastBytesReceived = c.bytesReceived
 			c.lastTime = rightMeow
+
+			if c.state == Done {
+				break
+			}
 		}
 	}
 
@@ -232,13 +246,7 @@ func (c *Client) ask() error {
 			return err
 		}
 	case ExpectDataSections:
-		// Finish transfer if all ACKed:
-		if c.nakRegions != nil && c.nakRegions.IsAllAcked() {
-			c.state = Done
-			return nil
-		}
-
-		// Send the last ACK:
+		// Send the last ACKed region to get a new region:
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
 		binary.Write(buf, byteOrder, c.lastAck.start)
@@ -376,6 +384,15 @@ func (c *Client) processData(msg UDPMessage) error {
 	}
 
 	c.lastAck = Region{start: region, endEx: region + int64(len(data))}
+
+	if c.nakRegions.IsAcked(c.lastAck.start, c.lastAck.endEx) {
+		// Already ACKed:
+		if c.nakRegions.IsAllAcked() {
+			c.state = Done
+		}
+
+		return c.ask()
+	}
 
 	// ACK the region:
 	err = c.nakRegions.Ack(c.lastAck.start, c.lastAck.endEx)

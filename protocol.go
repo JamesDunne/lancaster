@@ -100,6 +100,16 @@ func (r *NakRegions) NextNakRegion(start int64) int64 {
 	return -1
 }
 
+func (r *NakRegions) IsAcked(start int64, endEx int64) bool {
+	for _, k := range r.naks {
+		if start >= k.start && endEx <= k.endEx {
+			return false
+		}
+	}
+
+	return true
+}
+
 // [].ack(?, ?) => []
 // [(0, 10)].ack(0, 10) => []
 // [(0, 10)].ack(0,  5) => [(5, 10)]
