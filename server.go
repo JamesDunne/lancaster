@@ -202,7 +202,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		return err
 	}
 
-	if bytes.Compare(hashId, s.tb.HashId()) != 0 {
+	if compareHashes(hashId, s.tb.HashId()) != 0 {
 		// Ignore message not for us:
 		return nil
 	}

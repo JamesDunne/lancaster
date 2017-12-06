@@ -178,7 +178,7 @@ func (c *Client) processControl(msg UDPMessage) error {
 		}
 
 	case ExpectMetadataHeader:
-		if bytes.Compare(c.hashId, hashId) != 0 {
+		if compareHashes(c.hashId, hashId) != 0 {
 			// Ignore message not for us:
 			return nil
 		}
@@ -200,7 +200,7 @@ func (c *Client) processControl(msg UDPMessage) error {
 		}
 
 	case ExpectMetadataSections:
-		if bytes.Compare(c.hashId, hashId) != 0 {
+		if compareHashes(c.hashId, hashId) != 0 {
 			// Ignore message not for us:
 			return nil
 		}
@@ -374,7 +374,7 @@ func (c *Client) processData(msg UDPMessage) error {
 		return err
 	}
 
-	if bytes.Compare(c.hashId, hashId) != 0 {
+	if compareHashes(c.hashId, hashId) != 0 {
 		// Ignore message not for us:
 		//fmt.Print("data msg ignored\n")
 		return nil

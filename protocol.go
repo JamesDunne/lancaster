@@ -8,7 +8,7 @@ import (
 )
 
 const protocolVersion = 1
-const hashSize = 32
+const hashSize = 8
 const protocolControlPrefixSize = 1 + hashSize + 1
 const protocolDataMsgPrefixSize = 1 + hashSize + 8
 
@@ -38,6 +38,10 @@ const (
 	RequestMetadataSection
 	AckDataSection
 )
+
+func compareHashes(a []byte, b []byte) int {
+	return bytes.Compare(a[:hashSize], b[:hashSize])
+}
 
 type Region struct {
 	start int64
@@ -144,7 +148,7 @@ func (r *NakRegions) Ack(start int64, endEx int64) error {
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
 	msg := make([]byte, 0, protocolControlPrefixSize+len(data))
 	msg = append(msg, protocolVersion)
-	msg = append(msg, hashId...)
+	msg = append(msg, hashId[:hashSize]...)
 	msg = append(msg, byte(op))
 	msg = append(msg, data...)
 	return msg
@@ -153,7 +157,7 @@ func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []
 func controlToServerMessage(hashId []byte, op ControlToServerOp, data []byte) []byte {
 	msg := make([]byte, 0, protocolControlPrefixSize+len(data))
 	msg = append(msg, protocolVersion)
-	msg = append(msg, hashId...)
+	msg = append(msg, hashId[:hashSize]...)
 	msg = append(msg, byte(op))
 	msg = append(msg, data...)
 	return msg
@@ -163,7 +167,7 @@ func dataMessage(hashId []byte, region int64, data []byte) []byte {
 	msg := make([]byte, 0, protocolDataMsgPrefixSize+len(data))
 	buf := bytes.NewBuffer(msg)
 	buf.WriteByte(protocolVersion)
-	buf.Write(hashId)
+	buf.Write(hashId[:hashSize])
 	binary.Write(buf, byteOrder, region)
 	buf.Write(data)
 	return buf.Bytes()
