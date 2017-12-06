@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type empty struct{}
+
 type Server struct {
 	m  *Multicast
 	tb *VirtualTarballReader
@@ -18,6 +20,7 @@ type Server struct {
 	metadataSections [][]byte
 
 	lastClientDataRequest time.Time
+	allowSend             chan empty
 
 	nakRegions  *NakRegions
 	nextRegion  int64
@@ -31,8 +34,9 @@ type Server struct {
 
 func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
-		m:  m,
-		tb: tb,
+		m:         m,
+		tb:        tb,
+		allowSend: make(chan empty, 1),
 	}
 }
 
@@ -73,6 +77,8 @@ func (s *Server) Run() error {
 
 	// Send/recv loop:
 	fmt.Print("Started server\n")
+	go s.sendDataLoop()
+
 	for {
 		select {
 		case ctrl := <-s.m.ControlToServer:
@@ -104,6 +110,15 @@ func (s *Server) reportBandwidth() {
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow
+}
+
+// goroutine to only send data while clients request it:
+func (s *Server) sendDataLoop() {
+	for {
+		// Wait until we're requested by at least 1 client to send data:
+		<-s.allowSend
+		s.sendData()
+	}
 }
 
 func (s *Server) sendData() error {
@@ -258,8 +273,12 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			// ACK region:
 			s.nakRegions.Ack(ack.start, ack.endEx)
 		}
-		// Send next region:
-		return s.sendData()
+		// Allow sending data with a non-blocking channel send:
+		select {
+		case s.allowSend <- empty{}:
+		default:
+		}
+		return nil
 	}
 
 	return nil
