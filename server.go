@@ -235,8 +235,13 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			start: int64(byteOrder.Uint64(data[0:8])),
 			endEx: int64(byteOrder.Uint64(data[8:16])),
 		}
-		s.nakRegions.Ack(ack.start, ack.endEx)
-		//fmt.Printf("ack: [%v %v]\n", ack.start, ack.endEx)
+		if ack.start == 0 && ack.endEx == 0 {
+			// New client means clear all ACKs:
+			s.nakRegions.Clear()
+		} else {
+			// ACK region:
+			s.nakRegions.Ack(ack.start, ack.endEx)
+		}
 		// Send next region:
 		return s.sendData()
 	}
