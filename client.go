@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -148,7 +149,7 @@ func (c *Client) reportBandwidth() {
 	if c.nakRegions != nil {
 		pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
 	}
-	fmt.Printf("%15.2f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, c.nakRegions.ASCIIMeter(60))
+	fmt.Printf("%15.0f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, c.nakRegions.ASCIIMeter(48))
 
 	c.lastBytesReceived = c.bytesReceived
 	c.lastTime = rightMeow
@@ -354,6 +355,8 @@ func (c *Client) decodeMetadata() error {
 	for _, f := range c.tb.files {
 		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
 	}
+
+	fmt.Printf("%15d  ID: %s\n", c.tb.size, hex.EncodeToString(c.hashId))
 
 	// Start elapsed timer:
 	c.startTime = time.Now()

@@ -79,8 +79,7 @@ func (s *Server) Run() error {
 	oneSecond := time.Tick(time.Second)
 
 	fmt.Print("Started server\n")
-	fmt.Printf("Size: %15d\n", s.tb.size)
-	fmt.Printf("ID:   %s\n", hex.EncodeToString(s.hashId))
+	fmt.Printf("%15d  ID: %s\n", s.tb.size, hex.EncodeToString(s.hashId))
 
 	// Send/recv loop:
 	go s.sendDataLoop()
@@ -112,7 +111,7 @@ func (s *Server) reportBandwidth() {
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
 
-	fmt.Printf("%15.2f B/s [%s]\r", float64(byteCount)/sec, s.nakRegions.ASCIIMeter(60))
+	fmt.Printf("%15.0f B/s         [%s]\r", float64(byteCount)/sec, s.nakRegions.ASCIIMeter(48))
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow
