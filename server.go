@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"time"
 )
 
@@ -101,23 +100,7 @@ func (s *Server) reportBandwidth() {
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
 
-	const nakMeterLen = 40
-	charSize := float64(s.nakRegions.size) / float64(nakMeterLen)
-
-	nakMeter := make([]byte, nakMeterLen)
-	for i := 0; i < nakMeterLen; i++ {
-		nakMeter[i] = '#'
-	}
-	for _, r := range s.nakRegions.Naks() {
-		i := int(math.Floor(float64(r.start) / charSize))
-		j := int(math.Floor(float64(r.endEx) / charSize))
-
-		for ; i < j && i < nakMeterLen; i++ {
-			nakMeter[i] = '.'
-		}
-	}
-
-	fmt.Printf("%15.2f B/s     [%s]\r", float64(byteCount)/sec, string(nakMeter))
+	fmt.Printf("%15.2f B/s [%s]    \r", float64(byteCount)/sec, s.nakRegions.ASCIIMeter(60))
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"math"
 )
 
 const protocolVersion = 1
@@ -143,6 +144,23 @@ func (r *NakRegions) Ack(start int64, endEx int64) error {
 
 	r.naks = o
 	return nil
+}
+
+func (r *NakRegions) ASCIIMeter(nakMeterLen int) string {
+	charSize := float64(r.size) / float64(nakMeterLen)
+	nakMeter := make([]byte, nakMeterLen)
+	for i := 0; i < nakMeterLen; i++ {
+		nakMeter[i] = '#'
+	}
+	for _, k := range r.naks {
+		i := int(math.Floor(float64(k.start) / charSize))
+		j := int(math.Floor(float64(k.endEx) / charSize))
+
+		for ; i < j && i < nakMeterLen; i++ {
+			nakMeter[i] = '.'
+		}
+	}
+	return string(nakMeter)
 }
 
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
