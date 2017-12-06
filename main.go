@@ -14,7 +14,6 @@ func main() {
 	netInterfaceName := ""
 	netInterface := (*net.Interface)(nil)
 	address := ""
-	datagramSize := 0
 	ttl := 0
 	loopbackEnable := false
 
@@ -24,7 +23,6 @@ func main() {
 			return nil, err
 		}
 
-		m.SetDatagramSize(datagramSize)
 		m.SetTTL(ttl)
 		m.SetLoopback(loopbackEnable)
 		return m, nil
@@ -51,11 +49,6 @@ func main() {
 			Value:       "236.0.0.100:1360",
 			Usage:       "UDP multicast group for transfers",
 			Destination: &address,
-		},
-		cli.IntFlag{
-			Name:        "datagram size,s",
-			Value:       1200,
-			Destination: &datagramSize,
 		},
 		cli.IntFlag{
 			Name:        "ttl,t",

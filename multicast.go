@@ -13,6 +13,8 @@ const (
 	DataSection
 )
 
+const bufferScalar = 32
+
 type UDPMessage struct {
 	Error error
 
@@ -21,10 +23,11 @@ type UDPMessage struct {
 }
 
 type Multicast struct {
-	netInterface *net.Interface
-	datagramSize int
-	ttl          int
-	loopback     bool
+	netInterface      *net.Interface
+	datagramSize      int
+	bufferPacketCount int
+	ttl               int
+	loopback          bool
 
 	controlToServerAddr *net.UDPAddr
 	controlToClientAddr *net.UDPAddr
@@ -71,7 +74,8 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 
 	c := &Multicast{
 		netInterface:        netInterface,
-		datagramSize:        1200,
+		datagramSize:        65000,
+		bufferPacketCount:   32,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,
@@ -172,11 +176,11 @@ func (m *Multicast) Close() error {
 }
 
 func (m *Multicast) setDatagramSize(c *net.UDPConn) error {
-	err := c.SetReadBuffer(m.datagramSize)
+	err := c.SetReadBuffer(m.datagramSize * m.bufferPacketCount)
 	if err != nil {
 		return err
 	}
-	err = c.SetWriteBuffer(m.datagramSize)
+	err = c.SetWriteBuffer(m.datagramSize * m.bufferPacketCount)
 	if err != nil {
 		return err
 	}
