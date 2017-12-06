@@ -13,6 +13,8 @@ type Server struct {
 	m  *Multicast
 	tb *VirtualTarballReader
 
+	hashId []byte
+
 	announceTicker <-chan time.Time
 	announceMsg    []byte
 
@@ -36,6 +38,7 @@ func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
 	return &Server{
 		m:         m,
 		tb:        tb,
+		hashId:    tb.HashId(),
 		allowSend: make(chan empty, 1),
 	}
 }
@@ -70,7 +73,7 @@ func (s *Server) Run() error {
 	s.announceTicker = time.Tick(1 * time.Second)
 
 	// Create an announcement message:
-	s.announceMsg = controlToClientMessage(s.tb.HashId(), AnnounceTarball, nil)
+	s.announceMsg = controlToClientMessage(s.hashId, AnnounceTarball, nil)
 
 	// Create a one-second ticker for reporting:
 	oneSecond := time.Tick(time.Second)
@@ -139,7 +142,7 @@ func (s *Server) sendData() error {
 
 	// Send data message:
 	m := 0
-	dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
+	dataMsg := dataMessage(s.hashId, s.nextRegion, buf)
 	m, err = s.m.SendData(dataMsg)
 	if err != nil {
 		return err
@@ -247,7 +250,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		return err
 	}
 
-	if compareHashes(hashId, s.tb.HashId()) != 0 {
+	if compareHashes(hashId, s.hashId) != 0 {
 		// Ignore message not for us:
 		return nil
 	}
