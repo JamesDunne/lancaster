@@ -43,7 +43,7 @@ func (s *Server) Run() error {
 		return err
 	}
 
-	s.regionSize = uint16(s.m.MaxMessageSize() - (protocolDataMsgSize))
+	s.regionSize = uint16(s.m.MaxMessageSize() - (protocolDataMsgPrefixSize))
 	s.nextRegion = 0
 	s.regionCount = s.tb.size / int64(s.regionSize)
 	if int64(s.regionSize)*s.regionCount < s.tb.size {

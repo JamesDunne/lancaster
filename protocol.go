@@ -3,7 +3,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 )
@@ -11,7 +10,7 @@ import (
 const protocolVersion = 1
 const hashSize = 32
 const protocolControlPrefixSize = 1 + hashSize + 1
-const protocolDataMsgSize = 1 + hashSize + 8
+const protocolDataMsgPrefixSize = 1 + hashSize + 8
 
 const metadataSectionMsgSize = 2
 const metadataHeaderMsgSize = 2
@@ -39,18 +38,6 @@ const (
 	RequestMetadataSection
 	AckDataSection
 )
-
-type TarballFileMetadata struct {
-	Path string
-	Size int64
-	Mode uint32
-	Hash [sha256.Size]byte
-}
-
-type TarballMetadata struct {
-	Files []TarballFileMetadata
-	Size  int64
-}
 
 type Region struct {
 	start int64
@@ -226,7 +213,7 @@ func extractServerMessage(ctrl UDPMessage) (hashId []byte, op ControlToServerOp,
 }
 
 func extractDataMessage(ctrl UDPMessage) (hashId []byte, region int64, data []byte, err error) {
-	if len(ctrl.Data) < protocolDataMsgSize {
+	if len(ctrl.Data) < protocolDataMsgPrefixSize {
 		err = ErrMessageTooShort
 		return
 	}
