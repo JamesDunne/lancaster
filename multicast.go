@@ -233,7 +233,7 @@ func (m *Multicast) SetLoopback(enable bool) {
 }
 
 func (m *Multicast) MaxMessageSize() int {
-	return m.datagramSize - 64
+	return m.datagramSize
 }
 
 func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) error {
