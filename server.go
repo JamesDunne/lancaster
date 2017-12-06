@@ -101,7 +101,6 @@ func (s *Server) sendData() error {
 	}
 	buf = buf[:n]
 
-	fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
 	m := 0
 	dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
 	m, err = s.m.SendData(dataMsg)
@@ -234,7 +233,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			endEx: int64(byteOrder.Uint64(data[8:16])),
 		}
 		s.nakRegions.Ack(ack.start, ack.endEx)
-		fmt.Printf("ack: [%v %v]\n", ack.start, ack.endEx)
+		//fmt.Printf("ack: [%v %v]\n", ack.start, ack.endEx)
 		// Send next region:
 		return s.sendData()
 	}

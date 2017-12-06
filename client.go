@@ -87,6 +87,15 @@ func (c *Client) Run() error {
 			// Resend a request that might have gotten lost:
 			err = c.ask()
 			logError(err)
+			if c.state == Done {
+				break
+			}
+		}
+	}
+
+	if c.tb != nil {
+		if err := c.tb.Close(); err != nil {
+			return err
 		}
 	}
 
@@ -207,7 +216,7 @@ func (c *Client) ask() error {
 		}
 	case ExpectDataSections:
 		// Send the last ACK:
-		fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
+		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
 		binary.Write(buf, byteOrder, c.lastAck.start)
 		binary.Write(buf, byteOrder, c.lastAck.endEx)
