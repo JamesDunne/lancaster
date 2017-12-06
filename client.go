@@ -37,6 +37,10 @@ type Client struct {
 
 	nakRegions *NakRegions
 	lastAck    Region
+
+	bytesReceived     int64
+	lastBytesReceived int64
+	lastTime          time.Time
 }
 
 func NewClient(m *Multicast) *Client {
@@ -90,6 +94,16 @@ func (c *Client) Run() error {
 			if c.state == Done {
 				break
 			}
+
+			// Measure receive bandwidth:
+			bytesPerSec := c.bytesReceived - c.lastBytesReceived
+			rightMeow := time.Now()
+			sec := rightMeow.Sub(c.lastTime).Seconds()
+
+			fmt.Printf("%9f b/s\r", float64(bytesPerSec)/float64(sec))
+
+			c.lastBytesReceived = c.bytesReceived
+			c.lastTime = rightMeow
 		}
 	}
 
@@ -371,6 +385,8 @@ func (c *Client) processData(msg UDPMessage) error {
 		return err
 	}
 	_ = n
+
+	c.bytesReceived += int64(len(data))
 
 	if c.nakRegions.IsAllAcked() {
 		c.state = Done
