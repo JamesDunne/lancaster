@@ -2,12 +2,13 @@
 package main
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 type VirtualTarballReader struct {
@@ -18,8 +19,6 @@ type VirtualTarballReader struct {
 
 func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error) {
 	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
-
-	all := sha256.New()
 
 	uniquePaths := make(map[string]string)
 	size := int64(0)
@@ -41,21 +40,6 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 		}
 		uniquePaths[f.Path] = f.Path
 
-		//// Hash the file's contents:
-		//h, err := hashFile(f.Path)
-		//if err != nil {
-		//	return nil, err
-		//}
-		//f.Hash = h
-		f.Hash = zeroHash[:]
-
-		// Write unique data about file into collection hash:
-		all.Write([]byte(f.Path))
-		b := make([]byte, 8)
-		binary.LittleEndian.PutUint64(b, uint64(f.Size))
-		all.Write(b)
-		all.Write(f.Hash)
-
 		// Keep track of the file internally:
 		filesInternal = append(filesInternal, &tarballFile{
 			TarballFile: f,
@@ -69,10 +53,25 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 	// Sort files for consistency:
 	sort.Sort(filesInternal)
 
+	// Generate a 64-bit hash for identification purposes:
+	all := fnv.New64a()
+	b, _ := time.Now().MarshalBinary()
+	all.Write(b)
+	for _, f := range filesInternal {
+		// Write unique data about file into collection hash:
+		all.Write([]byte(f.Path))
+		binary.Write(all, byteOrder, f.Size)
+		binary.Write(all, byteOrder, f.Mode)
+	}
+
+	// Sum the 64-bit hash:
+	hashId := make([]byte, 8)
+	byteOrder.PutUint64(hashId, all.Sum64())
+
 	return &VirtualTarballReader{
 		files:  filesInternal,
 		size:   size,
-		hashId: all.Sum(nil),
+		hashId: hashId,
 	}, nil
 }
 

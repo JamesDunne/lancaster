@@ -9,12 +9,11 @@ import (
 )
 
 type VirtualTarballWriter struct {
-	files  tarballFileList
-	size   int64
-	hashId []byte
+	files tarballFileList
+	size  int64
 }
 
-func NewVirtualTarballWriter(files []TarballFile, hashId []byte) (*VirtualTarballWriter, error) {
+func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error) {
 	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
 
 	uniquePaths := make(map[string]string)
@@ -50,14 +49,9 @@ func NewVirtualTarballWriter(files []TarballFile, hashId []byte) (*VirtualTarbal
 	sort.Sort(filesInternal)
 
 	return &VirtualTarballWriter{
-		files:  filesInternal,
-		size:   size,
-		hashId: hashId,
+		files: filesInternal,
+		size:  size,
 	}, nil
-}
-
-func (t *VirtualTarballWriter) HashId() []byte {
-	return t.hashId
 }
 
 // io.Closer:

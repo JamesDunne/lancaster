@@ -30,7 +30,6 @@ type TarballFile struct {
 	Path string
 	Size int64
 	Mode os.FileMode
-	Hash []byte
 }
 
 type tarballFile struct {

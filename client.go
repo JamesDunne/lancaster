@@ -341,7 +341,7 @@ func (c *Client) decodeMetadata() error {
 	}
 
 	// Create a writer:
-	c.tb, err = NewVirtualTarballWriter(files, c.hashId)
+	c.tb, err = NewVirtualTarballWriter(files)
 	if err != nil {
 		return err
 	}
