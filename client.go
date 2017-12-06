@@ -69,6 +69,7 @@ func (c *Client) Run() error {
 	oneSecond := time.Tick(time.Second)
 
 	// Main message loop:
+loop:
 	for {
 		err := error(nil)
 
@@ -81,7 +82,7 @@ func (c *Client) Run() error {
 			err = c.processControl(msg)
 			logError(err)
 			if c.state == Done {
-				break
+				break loop
 			}
 
 		case msg := <-c.m.Data:
@@ -92,7 +93,7 @@ func (c *Client) Run() error {
 			err = c.processData(msg)
 			logError(err)
 			if c.state == Done {
-				break
+				break loop
 			}
 
 		case <-c.resendTimer:
@@ -100,7 +101,7 @@ func (c *Client) Run() error {
 			err = c.ask()
 			logError(err)
 			if c.state == Done {
-				break
+				break loop
 			}
 
 		case <-oneSecond:
@@ -119,7 +120,7 @@ func (c *Client) Run() error {
 			c.lastTime = rightMeow
 
 			if c.state == Done {
-				break
+				break loop
 			}
 		}
 	}
@@ -387,7 +388,8 @@ func (c *Client) processData(msg UDPMessage) error {
 
 	if c.nakRegions.IsAcked(c.lastAck.start, c.lastAck.endEx) {
 		// Already ACKed:
-		if c.nakRegions.IsAllAcked() {
+		allDone := c.nakRegions.IsAllAcked()
+		if allDone {
 			c.state = Done
 		}
 
@@ -409,7 +411,8 @@ func (c *Client) processData(msg UDPMessage) error {
 
 	c.bytesReceived += int64(len(data))
 
-	if c.nakRegions.IsAllAcked() {
+	allDone := c.nakRegions.IsAllAcked()
+	if allDone {
 		c.state = Done
 	}
 
