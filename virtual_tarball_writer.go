@@ -95,15 +95,25 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 			// Try to mkdir all paths involved:
 			dir, _ := filepath.Split(tf.Path)
 			if dir != "" {
-				err := os.MkdirAll(dir, os.FileMode(tf.Mode))
+				// Make sure directories are at least rwx by owner:
+				err := os.MkdirAll(dir, tf.Mode|0700)
 				if err != nil {
 					return 0, err
 				}
 			}
 
-			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, os.FileMode(tf.Mode))
+			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode)
 			if err != nil {
-				return 0, err
+				if os.IsPermission(err) {
+					// If permission denied, attempt to add -w- to owner:
+					tf.Mode |= 0200
+					f, err = os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode)
+					if err != nil {
+						return 0, err
+					}
+				} else {
+					return 0, err
+				}
 			}
 
 			// Reserve disk space:
