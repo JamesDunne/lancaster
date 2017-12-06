@@ -39,7 +39,6 @@ func (s *Server) Run() error {
 	}()
 
 	// Construct metadata sections:
-	fmt.Print("Starting server...\n")
 	if err = s.buildMetadata(); err != nil {
 		return err
 	}
@@ -50,7 +49,7 @@ func (s *Server) Run() error {
 	if int64(s.regionSize)*s.regionCount < s.tb.size {
 		s.regionCount++
 	}
-	fmt.Printf("region size %v, count %v\n", s.regionSize, s.regionCount)
+	//fmt.Printf("region size %v, count %v\n", s.regionSize, s.regionCount)
 
 	s.nakRegions = NewNakRegions(s.tb.size)
 
@@ -66,6 +65,7 @@ func (s *Server) Run() error {
 	s.announceMsg = controlToClientMessage(s.tb.HashId(), AnnounceTarball, nil)
 
 	// Send/recv loop:
+	fmt.Print("Started server\n")
 	for {
 		select {
 		case ctrl := <-s.m.ControlToServer:
@@ -88,7 +88,8 @@ func (s *Server) Run() error {
 
 func (s *Server) sendData() error {
 	err := error(nil)
-	// Send next region chunk out:
+
+	// Read data from virtual tarball:
 	n := 0
 	buf := make([]byte, s.regionSize)
 	n, err = s.tb.ReadAt(buf, s.nextRegion)
@@ -101,6 +102,7 @@ func (s *Server) sendData() error {
 	}
 	buf = buf[:n]
 
+	// Send data message:
 	m := 0
 	dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
 	m, err = s.m.SendData(dataMsg)
@@ -117,7 +119,7 @@ func (s *Server) sendData() error {
 		s.nextRegion = 0
 	}
 
-	// Filter it out of NAKed regions:
+	// Filter out ACKed regions:
 	nextNak := s.nakRegions.NextNakRegion(s.nextRegion)
 	if nextNak == -1 {
 		return nil
@@ -153,11 +155,13 @@ func (s *Server) buildMetadata() error {
 
 	writePrimitive(tb.size)
 	writePrimitive(uint32(len(tb.files)))
+	fmt.Print("Files:\n")
 	for _, f := range tb.files {
 		writeString(f.Path)
 		writePrimitive(f.Size)
 		writePrimitive(f.Mode)
 		writeBytes(f.Hash)
+		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
 	}
 	if err != nil {
 		return err
@@ -199,7 +203,6 @@ func (s *Server) buildMetadata() error {
 }
 
 func (s *Server) processControl(ctrl UDPMessage) error {
-	//fmt.Printf("ctrlrecv\n%s", hex.Dump(ctrl.Data))
 	hashId, op, data, err := extractServerMessage(ctrl)
 	if err != nil {
 		return err

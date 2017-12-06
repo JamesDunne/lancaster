@@ -4,7 +4,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -41,6 +40,9 @@ type Client struct {
 	bytesReceived     int64
 	lastBytesReceived int64
 	lastTime          time.Time
+
+	startTime time.Time
+	endTime   time.Time
 }
 
 func NewClient(m *Multicast) *Client {
@@ -66,7 +68,11 @@ func (c *Client) Run() error {
 	c.state = ExpectAnnouncement
 	c.hashId = nil
 
+	// Start ticking every second to measure bandwidth:
 	oneSecond := time.Tick(time.Second)
+	c.lastTime = time.Now()
+	c.startTime = c.lastTime
+	c.lastBytesReceived = 0
 
 	// Main message loop:
 loop:
@@ -105,19 +111,8 @@ loop:
 			}
 
 		case <-oneSecond:
-			// Measure receive bandwidth:
-			byteCount := c.bytesReceived - c.lastBytesReceived
-			rightMeow := time.Now()
-			sec := rightMeow.Sub(c.lastTime).Seconds()
-
-			pct := float64(0.0)
-			if c.nakRegions != nil {
-				pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
-			}
-			fmt.Printf("%15.2f b/s     %5.2f%% complete    \r", float64(byteCount)/sec, pct)
-
-			c.lastBytesReceived = c.bytesReceived
-			c.lastTime = rightMeow
+			// Measure and report receive-bandwidth:
+			c.reportBandwidth()
 
 			if c.state == Done {
 				break loop
@@ -125,13 +120,38 @@ loop:
 		}
 	}
 
+	// Final report:
+	c.reportBandwidth()
+	fmt.Println()
+
+	// Elapsed time:
+	c.endTime = time.Now()
+	fmt.Printf("%v elapsed\n", c.endTime.Sub(c.startTime))
+
+	// Close virtual tarball writer:
 	if c.tb != nil {
 		if err := c.tb.Close(); err != nil {
 			return err
 		}
 	}
 
+	// Close multicast sockets:
 	return c.m.Close()
+}
+
+func (c *Client) reportBandwidth() {
+	byteCount := c.bytesReceived - c.lastBytesReceived
+	rightMeow := time.Now()
+	sec := rightMeow.Sub(c.lastTime).Seconds()
+
+	pct := float64(0.0)
+	if c.nakRegions != nil {
+		pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
+	}
+	fmt.Printf("%15.2f B/s     %5.2f%% complete    \r", float64(byteCount)/sec, pct)
+
+	c.lastBytesReceived = c.bytesReceived
+	c.lastTime = rightMeow
 }
 
 func (c *Client) processControl(msg UDPMessage) error {
@@ -140,13 +160,10 @@ func (c *Client) processControl(msg UDPMessage) error {
 		return err
 	}
 
-	//fmt.Printf("ctrlrecv\n%s", hex.Dump(msg.Data))
-
 	switch c.state {
 	case ExpectAnnouncement:
 		switch op {
 		case AnnounceTarball:
-			fmt.Printf("announcement\n")
 			// TODO: add some sort of subscribe feature for end users in case of multiple transfers
 			c.hashId = hashId
 			_ = data
@@ -168,7 +185,6 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 		switch op {
 		case RespondMetadataHeader:
-			fmt.Printf("metadata header\n")
 			// Read count of sections:
 			c.metadataSectionCount = byteOrder.Uint16(data[0:2])
 			c.metadataSections = make([][]byte, c.metadataSectionCount)
@@ -191,7 +207,6 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 		switch op {
 		case RespondMetadataSection:
-			fmt.Printf("metadata section\n")
 			sectionIndex := byteOrder.Uint16(data[0:2])
 			if sectionIndex == c.nextSectionIndex {
 				c.metadataSections[sectionIndex] = make([]byte, len(data[2:]))
@@ -268,8 +283,6 @@ func (c *Client) ask() error {
 
 func (c *Client) decodeMetadata() error {
 	// Decode all metadata sections and create a VirtualTarballWriter to download against:
-	fmt.Print("Decoding metadata...\n")
-
 	md := bytes.Join(c.metadataSections, nil)
 	mdBuf := bytes.NewBuffer(md)
 
@@ -352,23 +365,21 @@ func (c *Client) decodeMetadata() error {
 	}
 	c.nakRegions = NewNakRegions(c.tb.size)
 
-	fmt.Print("Metadata decoded. Files:\n")
+	fmt.Print("Receiving files:\n")
 	for _, f := range c.tb.files {
-		hashStr := make([]byte, 64)
-		hex.Encode(hashStr, f.Hash)
-		fmt.Printf("  %v %v %s\n", f.Mode, f.Size, f.Path)
+		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
 	}
+
+	// Start elapsed timer:
+	c.startTime = time.Now()
 
 	return nil
 }
 
 func (c *Client) processData(msg UDPMessage) error {
-	//fmt.Printf("data\n%s", hex.Dump(msg.Data))
-	//fmt.Print("data\n")
-
 	// Not ready for data yet:
 	if c.tb == nil {
-		fmt.Print("not ready for data\n")
+		//fmt.Print("not ready for data\n")
 		return nil
 	}
 
@@ -380,7 +391,7 @@ func (c *Client) processData(msg UDPMessage) error {
 
 	if bytes.Compare(c.hashId, hashId) != 0 {
 		// Ignore message not for us:
-		fmt.Print("data msg ignored\n")
+		//fmt.Print("data msg ignored\n")
 		return nil
 	}
 

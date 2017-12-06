@@ -75,7 +75,7 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 	c := &Multicast{
 		netInterface:        netInterface,
 		datagramSize:        65000,
-		bufferPacketCount:   32,
+		bufferPacketCount:   64,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,

@@ -3,7 +3,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"os"
 
@@ -120,8 +119,6 @@ func main() {
 				}
 
 				// Treat collection of files as virtual tarball for reading:
-				fmt.Print("Initializing metadata...\n")
-
 				tb, err := NewVirtualTarballReader(files)
 				if err != nil {
 					return err
