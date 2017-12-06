@@ -200,6 +200,11 @@ func (c *Client) processControl(msg UDPMessage) error {
 func (c *Client) ask() error {
 	err := (error)(nil)
 
+	if c.nakRegions.IsAllAcked() {
+		c.state = Done
+		return nil
+	}
+
 	switch c.state {
 	case ExpectMetadataHeader:
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataHeader, nil))
@@ -324,7 +329,7 @@ func (c *Client) decodeMetadata() error {
 	for _, f := range c.tb.files {
 		hashStr := make([]byte, 64)
 		hex.Encode(hashStr, f.Hash)
-		fmt.Printf("  %v %v %s %s\n", f.Mode, f.Size, f.Path, string(hashStr))
+		fmt.Printf("  %v %v %s\n", f.Mode, f.Size, f.Path)
 	}
 
 	return nil

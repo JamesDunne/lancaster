@@ -44,19 +44,20 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 
 		fmt.Printf("  %s\n", f.Path)
 
-		// Hash the file's contents:
-		h, err := hashFile(f.Path)
-		if err != nil {
-			return nil, err
-		}
-		f.Hash = h
+		//// Hash the file's contents:
+		//h, err := hashFile(f.Path)
+		//if err != nil {
+		//	return nil, err
+		//}
+		//f.Hash = h
+		f.Hash = zeroHash[:]
 
 		// Write unique data about file into collection hash:
 		all.Write([]byte(f.Path))
 		b := make([]byte, 8)
 		binary.LittleEndian.PutUint64(b, uint64(f.Size))
 		all.Write(b)
-		all.Write(h)
+		all.Write(f.Hash)
 
 		// Keep track of the file internally:
 		filesInternal = append(filesInternal, &tarballFile{
