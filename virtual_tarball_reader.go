@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	//	"time"
 )
 
 type VirtualTarballReader struct {
@@ -55,8 +54,6 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 
 	// Generate a 64-bit hash for identification purposes:
 	all := fnv.New64a()
-	//	b, _ := time.Now().MarshalBinary()
-	//	all.Write(b)
 	for _, f := range filesInternal {
 		// Write unique data about file into collection hash:
 		all.Write([]byte(f.Path))
