@@ -66,6 +66,8 @@ func (c *Client) Run() error {
 	c.state = ExpectAnnouncement
 	c.hashId = nil
 
+	oneSecond := time.Tick(time.Second)
+
 	// Main message loop:
 	for {
 		err := error(nil)
@@ -95,12 +97,13 @@ func (c *Client) Run() error {
 				break
 			}
 
+		case <-oneSecond:
 			// Measure receive bandwidth:
 			bytesPerSec := c.bytesReceived - c.lastBytesReceived
 			rightMeow := time.Now()
 			sec := rightMeow.Sub(c.lastTime).Seconds()
 
-			fmt.Printf("%9f b/s\r", float64(bytesPerSec)/float64(sec))
+			fmt.Printf("%f b/s\r", float64(bytesPerSec)/float64(sec))
 
 			c.lastBytesReceived = c.bytesReceived
 			c.lastTime = rightMeow
@@ -214,11 +217,6 @@ func (c *Client) processControl(msg UDPMessage) error {
 func (c *Client) ask() error {
 	err := (error)(nil)
 
-	if c.nakRegions.IsAllAcked() {
-		c.state = Done
-		return nil
-	}
-
 	switch c.state {
 	case ExpectMetadataHeader:
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataHeader, nil))
@@ -234,6 +232,12 @@ func (c *Client) ask() error {
 			return err
 		}
 	case ExpectDataSections:
+		// Finish transfer if all ACKed:
+		if c.nakRegions != nil && c.nakRegions.IsAllAcked() {
+			c.state = Done
+			return nil
+		}
+
 		// Send the last ACK:
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
