@@ -78,6 +78,29 @@ func (r *NakRegions) Clear() {
 	r.naks = []NakRegion{{start: 0, endEx: r.size}}
 }
 
+func (r *NakRegions) IsAllAcked() bool {
+	return len(r.naks) == 0
+}
+
+func (r *NakRegions) NextNakRegion(start int64) int64 {
+	if r.IsAllAcked() {
+		return -1
+	}
+
+	for _, k := range r.naks {
+		if start >= k.start && start < k.endEx {
+			return start
+		}
+	}
+
+	// Try the first nak region if nothing available after `start`:
+	if len(r.naks) > 0 {
+		return r.naks[0].start
+	}
+
+	return -1
+}
+
 // [].ack(?, ?) => []
 // [(0, 10)].ack(0, 10) => []
 // [(0, 10)].ack(0,  5) => [(5, 10)]
