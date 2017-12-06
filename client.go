@@ -148,7 +148,7 @@ func (c *Client) reportBandwidth() {
 	if c.nakRegions != nil {
 		pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
 	}
-	fmt.Printf("%15.2f B/s     %5.2f%% complete    \r", float64(byteCount)/sec, pct)
+	fmt.Printf("%15.2f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, c.nakRegions.ASCIIMeter(60))
 
 	c.lastBytesReceived = c.bytesReceived
 	c.lastTime = rightMeow
