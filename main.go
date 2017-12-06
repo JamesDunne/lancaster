@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -84,9 +85,18 @@ func main() {
 					return err
 				}
 
-				//local := c.Args().First()
+				hashId := []byte(nil)
+				if c.Args().Present() {
+					hashId, err = hex.DecodeString(c.Args().First())
+					if err != nil {
+						return err
+					}
+					if len(hashId) != hashSize {
+						return errors.New(fmt.Sprintf("id must be %d characters", hashSize*2))
+					}
+				}
 
-				cl := NewClient(m)
+				cl := NewClient(m, hashId)
 				return cl.Run()
 			},
 		},

@@ -46,10 +46,11 @@ type Client struct {
 	endTime   time.Time
 }
 
-func NewClient(m *Multicast) *Client {
+func NewClient(m *Multicast, hashId []byte) *Client {
 	return &Client{
-		m:     m,
-		state: ExpectAnnouncement,
+		m:      m,
+		state:  ExpectAnnouncement,
+		hashId: hashId,
 	}
 }
 
@@ -67,7 +68,6 @@ func (c *Client) Run() error {
 
 	// Start by expecting an announcment message:
 	c.state = ExpectAnnouncement
-	c.hashId = nil
 
 	// Start ticking every second to measure bandwidth:
 	oneSecond := time.Tick(time.Second)
@@ -149,7 +149,11 @@ func (c *Client) reportBandwidth() {
 	if c.nakRegions != nil {
 		pct = float64(c.bytesReceived) * 100.0 / float64(c.nakRegions.size)
 	}
-	fmt.Printf("%15.0f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, c.nakRegions.ASCIIMeter(48))
+	nakMeter := ""
+	if c.nakRegions != nil {
+		nakMeter = c.nakRegions.ASCIIMeter(48)
+	}
+	fmt.Printf("%15.0f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, nakMeter)
 
 	c.lastBytesReceived = c.bytesReceived
 	c.lastTime = rightMeow
@@ -165,9 +169,13 @@ func (c *Client) processControl(msg UDPMessage) error {
 	case ExpectAnnouncement:
 		switch op {
 		case AnnounceTarball:
-			// TODO: add some sort of subscribe feature for end users in case of multiple transfers
-			c.hashId = hashId
-			_ = data
+			if c.hashId == nil {
+				// If client has not specified a hashId to listen for, accept the first one that's announced:
+				c.hashId = hashId
+			} else if compareHashes(c.hashId, hashId) != 0 {
+				// These are not the droids we're looking for.
+				return nil
+			}
 
 			// Request metadata header:
 			c.state = ExpectMetadataHeader
