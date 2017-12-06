@@ -261,8 +261,14 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		// Send metadata section message:
 		section := s.metadataSections[sectionIndex]
 		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
-	case RequestDataSections:
-		_ = data
+	case AckDataSection:
+		// Read ACK and record it:
+		ack := Region{
+			start: int64(byteOrder.Uint64(data[0:8])),
+			endEx: int64(byteOrder.Uint64(data[8:16])),
+		}
+		s.nakRegions.Ack(ack.start, ack.endEx)
+		// Keep data-send mode alive:
 		s.enableDataSend <- time.Now()
 	}
 

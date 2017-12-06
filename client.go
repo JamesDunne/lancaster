@@ -18,6 +18,7 @@ const (
 	ExpectMetadataHeader
 	ExpectMetadataSections
 	ExpectDataSections
+	Done
 )
 
 const resendTimeout = 500 * time.Millisecond
@@ -35,6 +36,7 @@ type Client struct {
 	nextSectionIndex     uint16
 
 	nakRegions *NakRegions
+	lastAck    Region
 }
 
 func NewClient(m *Multicast) *Client {
@@ -188,7 +190,6 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 func (c *Client) ask() error {
 	err := (error)(nil)
-	//fmt.Printf("datarecv\n%s", hex.Dump(msg.Data))
 
 	switch c.state {
 	case ExpectMetadataHeader:
@@ -206,10 +207,15 @@ func (c *Client) ask() error {
 		}
 	case ExpectDataSections:
 		//fmt.Print("request data sections\n")
-		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestDataSections, nil))
+		// Send the last ACK:
+		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
+		binary.Write(buf, byteOrder, c.lastAck.start)
+		binary.Write(buf, byteOrder, c.lastAck.endEx)
+		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, buf.Bytes()))
 		if err != nil {
 			return err
 		}
+	case Done:
 	default:
 		return nil
 	}
@@ -337,8 +343,10 @@ func (c *Client) processData(msg UDPMessage) error {
 		return nil
 	}
 
+	c.lastAck = Region{start: region, endEx: region + int64(len(data))}
+
 	// ACK the region:
-	err = c.nakRegions.Ack(region, region+int64(len(data)))
+	err = c.nakRegions.Ack(c.lastAck.start, c.lastAck.endEx)
 	if err != nil {
 		return err
 	}
@@ -349,6 +357,10 @@ func (c *Client) processData(msg UDPMessage) error {
 		return err
 	}
 	_ = n
+
+	if c.nakRegions.IsAllAcked() {
+		c.state = Done
+	}
 
 	// Ask for more data:
 	return c.ask()

@@ -36,8 +36,7 @@ const (
 	// To-Server control messages:
 	RequestMetadataHeader = ControlToServerOp(iota)
 	RequestMetadataSection
-	RequestDataSections
-	NakDataSection
+	AckDataSection
 )
 
 type TarballFileMetadata struct {
@@ -52,21 +51,21 @@ type TarballMetadata struct {
 	Size  int64
 }
 
-type NakRegion struct {
+type Region struct {
 	start int64
 	endEx int64
 }
 
 type NakRegions struct {
-	naks []NakRegion
+	naks []Region
 	size int64
 }
 
 func NewNakRegions(size int64) *NakRegions {
-	return &NakRegions{naks: []NakRegion{{start: 0, endEx: size}}, size: size}
+	return &NakRegions{naks: []Region{{start: 0, endEx: size}}, size: size}
 }
 
-func (r *NakRegions) Naks() []NakRegion {
+func (r *NakRegions) Naks() []Region {
 	return r.naks
 }
 
@@ -75,7 +74,7 @@ func (r *NakRegions) Len() int {
 }
 
 func (r *NakRegions) Clear() {
-	r.naks = []NakRegion{{start: 0, endEx: r.size}}
+	r.naks = []Region{{start: 0, endEx: r.size}}
 }
 
 func (r *NakRegions) IsAllAcked() bool {
@@ -121,20 +120,20 @@ func (r *NakRegions) Ack(start int64, endEx int64) error {
 	}
 
 	// ACK a range by creating a modified NAK ranges:
-	o := make([]NakRegion, 0, len(a))
+	o := make([]Region, 0, len(a))
 	for _, k := range a {
 		if start == k.start && endEx == k.endEx {
 			// remove this range from output; i.e. dont add it.
 		} else if start > k.start && endEx < k.endEx {
 			// [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
-			o = append(o, NakRegion{k.start, start})
-			o = append(o, NakRegion{endEx, k.endEx})
+			o = append(o, Region{k.start, start})
+			o = append(o, Region{endEx, k.endEx})
 		} else if start > k.start && endEx == k.endEx {
 			// [(0, 10)].ack(5, 10) => [(0,  5)]
-			o = append(o, NakRegion{k.start, start})
+			o = append(o, Region{k.start, start})
 		} else if start == k.start && endEx < k.endEx {
 			// [(0, 10)].ack(0,  5) => [(5, 10)]
-			o = append(o, NakRegion{endEx, k.endEx})
+			o = append(o, Region{endEx, k.endEx})
 		} else {
 			o = append(o, k)
 		}
