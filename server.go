@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -60,7 +61,6 @@ func (s *Server) Run() error {
 	if int64(s.regionSize)*s.regionCount < s.tb.size {
 		s.regionCount++
 	}
-	//fmt.Printf("region size %v, count %v\n", s.regionSize, s.regionCount)
 
 	s.nakRegions = NewNakRegions(s.tb.size)
 
@@ -78,8 +78,11 @@ func (s *Server) Run() error {
 	// Create a one-second ticker for reporting:
 	oneSecond := time.Tick(time.Second)
 
-	// Send/recv loop:
 	fmt.Print("Started server\n")
+	fmt.Printf("Size: %15d\n", s.tb.size)
+	fmt.Printf("ID:   %s\n", hex.EncodeToString(s.hashId))
+
+	// Send/recv loop:
 	go s.sendDataLoop()
 
 	for {
@@ -209,6 +212,7 @@ func (s *Server) buildMetadata() error {
 		return err
 	}
 
+	// Slice into sections:
 	md := mdBuf.Bytes()
 
 	sectionSize := (s.m.MaxMessageSize() - (protocolControlPrefixSize + metadataSectionMsgSize))
@@ -217,7 +221,6 @@ func (s *Server) buildMetadata() error {
 		sectionCount++
 	}
 
-	// Slice into sections:
 	s.metadataSections = make([][]byte, 0, sectionCount)
 	o := 0
 	for n := 0; n < sectionCount; n++ {
