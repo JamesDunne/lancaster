@@ -3,8 +3,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/urfave/cli"
 )
@@ -94,25 +97,105 @@ func main() {
 			Action: func(c *cli.Context) error {
 				args := c.Args()
 				if !args.Present() {
-					return errors.New("Required arguments for files to serve")
+					return errors.New("Require arguments to specify which files to serve")
 				}
+
+				// directory name ending with ":::subdir" means to add recursively into subdir (or root).
+				// directory name ending with "::subdir" means to add non-recursively into subdir (or root).
+				// file name ending with "::alias" means to rename file.
+				//
+				// for directories:
+				// "../asdf" -> "/*"
+				// "../asdf::asdf" -> "/asdf/*"
+				// "../asdf:::asdf" -> "/asdf/**" (recursively)
+				// "/abs/path" => "/*"
+				// "/abs/path::" => "/*"
+				// "/abs/path:::" => "/**" (recursively)
+				//
+				// for files:
+				// "hjkl" -> "/hjkl"
+				// "hjkl::" -> "/hjkl"
+				// "hjkl::asdf" -> "/asdf"
 
 				files := make([]TarballFile, 0, len(args))
 				for _, a := range args {
-					stat, err := os.Stat(a)
-					if os.IsNotExist(err) {
-						continue
-					}
-					if err != nil {
-						return err
+					localPath := a
+					subdir := ""
+					isRecursive := false
+
+					// let "a::b" specify path 'a' with subdir 'b':
+					// e.g. "../hello::hello"
+					sep := strings.LastIndex(a, ":::")
+					if sep > 0 {
+						isRecursive = true
+						localPath = a[:sep]
+						subdir = a[sep+3:]
+					} else {
+						sep = strings.LastIndex(a, "::")
+						if sep > 0 {
+							localPath = a[:sep]
+							subdir = a[sep+2:]
+						}
 					}
 
-					// Add file to virtual tarball list:
-					files = append(files, TarballFile{
-						Path: a,
-						Size: stat.Size(),
-						Mode: stat.Mode(),
-					})
+					localPath = filepath.Clean(localPath)
+
+					stat, err := os.Stat(localPath)
+					if err != nil {
+						fmt.Printf("%s\n", err)
+						// Skip file due to error:
+						continue
+					}
+
+					if stat.IsDir() {
+						// Walk directory tree:
+						filepath.Walk(localPath, func(fullPath string, info os.FileInfo, err error) error {
+							// Skip starting directory entry:
+							if fullPath == localPath {
+								return nil
+							}
+
+							// Allow/prevent recursion accordingly:
+							if info.IsDir() {
+								if !isRecursive {
+									return filepath.SkipDir
+								}
+								return nil
+							}
+
+							// Translate to relative path with '/'s:
+							relPath := filepath.ToSlash(fullPath[len(localPath)+1:])
+
+							// Prepend subdir:
+							tarPath := relPath
+							if subdir != "" {
+								tarPath = subdir + "/" + tarPath
+							}
+
+							// Add file to virtual tarball list:
+							files = append(files, TarballFile{
+								Path:      tarPath,
+								LocalPath: fullPath,
+								Size:      info.Size(),
+								Mode:      info.Mode(),
+							})
+							return nil
+						})
+					} else {
+						tarPath := localPath
+						if subdir != "" {
+							// Rename file:
+							tarPath = subdir
+						}
+
+						// Add file to virtual tarball list:
+						files = append(files, TarballFile{
+							Path:      tarPath,
+							LocalPath: localPath,
+							Size:      stat.Size(),
+							Mode:      stat.Mode(),
+						})
+					}
 				}
 				if len(files) == 0 {
 					return errors.New("no files to serve")

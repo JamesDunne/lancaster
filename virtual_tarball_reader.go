@@ -111,7 +111,7 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 
 		// Open file if not already:
 		if tf.reader == nil {
-			f, err := os.OpenFile(tf.Path, os.O_RDONLY, 0)
+			f, err := os.OpenFile(tf.LocalPath, os.O_RDONLY, 0)
 			if err != nil {
 				return 0, err
 			}

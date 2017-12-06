@@ -27,9 +27,10 @@ type WriterAtCloser interface {
 }
 
 type TarballFile struct {
-	Path string
-	Size int64
-	Mode os.FileMode
+	Path      string
+	LocalPath string
+	Size      int64
+	Mode      os.FileMode
 }
 
 type tarballFile struct {
