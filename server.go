@@ -178,37 +178,39 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_ = data
 		s.lastClientDataRequest = time.Now()
 
-		fmt.Print("data request\n")
+		//fmt.Print("data request\n")
 
-		// Send next region chunk out:
-		n := 0
-		buf := make([]byte, s.regionSize)
-		n, err = s.tb.ReadAt(buf, s.nextRegion)
-		if err == ErrOutOfRange {
-			fmt.Printf("ReadAt: %s\n", err)
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		buf = buf[:n]
+		for i := 0; i < 20; i++ {
+			// Send next region chunk out:
+			n := 0
+			buf := make([]byte, s.regionSize)
+			n, err = s.tb.ReadAt(buf, s.nextRegion)
+			if err == ErrOutOfRange {
+				fmt.Printf("ReadAt: %s\n", err)
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			buf = buf[:n]
 
-		fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
-		m := 0
-		dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
-		m, err = s.m.SendData(dataMsg)
-		if err != nil {
-			return err
-		}
-		if m < len(dataMsg) {
-			fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
-		}
+			fmt.Printf("write: %v %v\n", s.nextRegion, len(buf))
+			m := 0
+			dataMsg := dataMessage(s.tb.HashId(), s.nextRegion, buf)
+			m, err = s.m.SendData(dataMsg)
+			if err != nil {
+				return err
+			}
+			if m < len(dataMsg) {
+				fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
+			}
 
-		// TODO: Consult s.nakRegions to find out next available region to send out:
+			// TODO: Consult s.nakRegions to find out next available region to send out:
 
-		s.nextRegion += int64(n)
-		if s.nextRegion >= s.tb.size {
-			s.nextRegion = 0
+			s.nextRegion += int64(n)
+			if s.nextRegion >= s.tb.size {
+				s.nextRegion = 0
+			}
 		}
 	}
 

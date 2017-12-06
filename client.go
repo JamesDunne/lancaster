@@ -205,7 +205,7 @@ func (c *Client) ask() error {
 			return err
 		}
 	case ExpectDataSections:
-		fmt.Print("request data sections\n")
+		//fmt.Print("request data sections\n")
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestDataSections, nil))
 		if err != nil {
 			return err
@@ -316,7 +316,8 @@ func (c *Client) decodeMetadata() error {
 }
 
 func (c *Client) processData(msg UDPMessage) error {
-	fmt.Printf("data\n%s", hex.Dump(msg.Data))
+	//fmt.Printf("data\n%s", hex.Dump(msg.Data))
+	//fmt.Print("data\n")
 
 	// Not ready for data yet:
 	if c.tb == nil {
@@ -349,5 +350,6 @@ func (c *Client) processData(msg UDPMessage) error {
 	}
 	_ = n
 
-	return nil
+	// Ask for more data:
+	return c.ask()
 }
