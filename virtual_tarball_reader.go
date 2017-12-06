@@ -4,6 +4,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,6 +41,8 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 			return nil, ErrDuplicatePaths
 		}
 		uniquePaths[f.Path] = f.Path
+
+		fmt.Printf("  %s\n", f.Path)
 
 		// Hash the file's contents:
 		h, err := hashFile(f.Path)

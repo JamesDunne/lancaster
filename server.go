@@ -132,19 +132,19 @@ func (s *Server) buildMetadata() error {
 	o := 0
 	for n := 0; n < sectionCount; n++ {
 		// Determine end point of metadata slice:
-		e := o + sectionSize
-		if e > len(md) {
-			e = len(md)
+		l := sectionSize
+		if o+l > len(md) {
+			l = len(md) - o
 		}
 
 		// Prepend section with uint16 of `n`:
-		ms := make([]byte, metadataSectionMsgSize, metadataSectionMsgSize+(e-o))
+		ms := make([]byte, metadataSectionMsgSize, metadataSectionMsgSize+l)
 		byteOrder.PutUint16(ms[0:2], uint16(n))
-		ms = append(ms, md[o:e]...)
+		ms = append(ms, md[o:o+l]...)
 
 		// Add section to list:
 		s.metadataSections = append(s.metadataSections, ms)
-		o += e
+		o += l
 	}
 
 	// Create metadata header to describe how many sections there are:
