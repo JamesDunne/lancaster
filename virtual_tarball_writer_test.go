@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func newTarballWriter(t *testing.T, files []TarballFile) *VirtualTarballWriter {
+func newTarballWriter(t *testing.T, files []*TarballFile) *VirtualTarballWriter {
 	tb, err := NewVirtualTarballWriter(files)
 	if err != nil {
 		panic(err)
@@ -26,8 +26,8 @@ func closeTarballWriter(t *testing.T, tb *VirtualTarballWriter) {
 }
 
 func TestWriteAt_OneFile(t *testing.T) {
-	files := []TarballFile{
-		TarballFile{
+	files := []*TarballFile{
+		&TarballFile{
 			Path: "jim1.txt",
 			Size: 3,
 			Mode: 0644,
@@ -47,13 +47,13 @@ func TestWriteAt_OneFile(t *testing.T) {
 }
 
 func TestWriteAt_SpanningFiles(t *testing.T) {
-	files := []TarballFile{
-		TarballFile{
+	files := []*TarballFile{
+		&TarballFile{
 			Path: "hello.txt",
 			Size: 7,
 			Mode: 0644,
 		},
-		TarballFile{
+		&TarballFile{
 			Path: "world.txt",
 			Size: 7,
 			Mode: 0644,
@@ -63,11 +63,13 @@ func TestWriteAt_SpanningFiles(t *testing.T) {
 	tb := newTarballWriter(t, files)
 	defer closeTarballWriter(t, tb)
 
-	n, err := tb.WriteAt([]byte("Hello, world!\n"), 0)
+	expectedMessage := []byte("Hello, \x00world!\n" + "\x00")
+	expectedLen := len(expectedMessage)
+	n, err := tb.WriteAt(expectedMessage, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 14 {
-		t.Fatalf("n != 14; n = %v", n)
+	if n != expectedLen {
+		t.Fatalf("n != %d; n = %v", expectedLen, n)
 	}
 }

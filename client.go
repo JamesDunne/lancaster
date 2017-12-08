@@ -336,12 +336,13 @@ func (c *Client) decodeMetadata() error {
 		return err
 	}
 
-	files := make([]TarballFile, 0, fileCount)
+	files := make([]*TarballFile, 0, fileCount)
 	for n := uint32(0); n < fileCount; n++ {
-		f := TarballFile{}
+		f := &TarballFile{}
 		readString(&f.Path)
 		readPrimitive(&f.Size)
 		readPrimitive(&f.Mode)
+		readString(&f.SymlinkDestination)
 		if err != nil {
 			return err
 		}

@@ -173,7 +173,7 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 	// "hjkl::" -> "/hjkl"
 	// "hjkl::asdf" -> "/asdf"
 
-	files := make([]TarballFile, 0, len(args))
+	files := make([]*TarballFile, 0, len(args))
 	for _, a := range args {
 		localPath := a
 		subdir := ""
@@ -200,7 +200,7 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 			continue
 		}
 
-		stat, err := os.Stat(localPath)
+		stat, err := os.Lstat(localPath)
 		if err != nil {
 			fmt.Printf("%s\n", err)
 			// Skip file due to error:
@@ -233,7 +233,7 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 				}
 
 				// Add file to virtual tarball list:
-				files = append(files, TarballFile{
+				files = append(files, &TarballFile{
 					Path:      tarPath,
 					LocalPath: fullPath,
 					Size:      info.Size(),
@@ -249,7 +249,7 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 			}
 
 			// Add file to virtual tarball list:
-			files = append(files, TarballFile{
+			files = append(files, &TarballFile{
 				Path:      tarPath,
 				LocalPath: localPath,
 				Size:      stat.Size(),

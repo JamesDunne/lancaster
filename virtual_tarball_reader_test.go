@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func newTarballReader(t *testing.T, files []TarballFile) *VirtualTarballReader {
+func newTarballReader(t *testing.T, files []*TarballFile) *VirtualTarballReader {
 	tb, err := NewVirtualTarballReader(files)
 	if err != nil {
 		panic(err)
@@ -28,15 +28,15 @@ func closeTarballReader(t *testing.T, tb *VirtualTarballReader) {
 }
 
 func TestTarball_Nop(t *testing.T) {
-	files := []TarballFile{}
+	files := []*TarballFile{}
 
 	tb := newTarballReader(t, files)
 	defer closeTarballReader(t, tb)
 }
 
 func TestTarball_BadPath1(t *testing.T) {
-	files := []TarballFile{
-		TarballFile{
+	files := []*TarballFile{
+		&TarballFile{
 			Path: "../test.txt",
 		},
 	}
@@ -71,8 +71,8 @@ func TestReadAt_OneFile(t *testing.T) {
 		t.Fatal("test file size != len(testMessage)")
 	}
 
-	files := []TarballFile{
-		TarballFile{
+	files := []*TarballFile{
+		&TarballFile{
 			Path:      fname,
 			LocalPath: fname,
 			Size:      mainFile.Size(),
@@ -83,15 +83,17 @@ func TestReadAt_OneFile(t *testing.T) {
 	tb := newTarballReader(t, files)
 	defer closeTarballReader(t, tb)
 
-	buf := make([]byte, len(testMessage))
+	expectedBytes := []byte(string(testMessage) + "\x00")
+	expectedLen := len(expectedBytes)
+	buf := make([]byte, expectedLen)
 	n, err := tb.ReadAt(buf, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != len(testMessage) {
-		t.Fatalf("n != %d; n = %v", len(testMessage), n)
+	if n != expectedLen {
+		t.Fatalf("n != %d; n = %v", expectedLen, n)
 	}
-	if bytes.Compare(buf, testMessage) != 0 {
+	if bytes.Compare(buf, expectedBytes) != 0 {
 		t.Fatalf("test message != read message")
 	}
 }
@@ -133,14 +135,14 @@ func TestReadAt_SpanningFiles(t *testing.T) {
 		t.Fatal("test file size != len(testMessage)")
 	}
 
-	files := []TarballFile{
-		TarballFile{
+	files := []*TarballFile{
+		&TarballFile{
 			Path:      fname1,
 			LocalPath: fname1,
 			Size:      testFile1.Size(),
 			Mode:      testFile1.Mode(),
 		},
-		TarballFile{
+		&TarballFile{
 			Path:      fname2,
 			LocalPath: fname2,
 			Size:      testFile2.Size(),
@@ -151,7 +153,7 @@ func TestReadAt_SpanningFiles(t *testing.T) {
 	tb := newTarballReader(t, files)
 	defer closeTarballReader(t, tb)
 
-	expectedMessage := []byte(testString + testString)
+	expectedMessage := []byte(testString + "\x00" + testString + "\x00")
 	expectedLen := len(expectedMessage)
 	buf := make([]byte, expectedLen)
 	n, err := tb.ReadAt(buf, 0)

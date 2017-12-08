@@ -208,6 +208,7 @@ func (s *Server) buildMetadata() error {
 		writeString(f.Path)
 		writePrimitive(f.Size)
 		writePrimitive(f.Mode)
+		writeString(f.SymlinkDestination)
 		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
 	}
 	if err != nil {

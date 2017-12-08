@@ -13,12 +13,12 @@ type VirtualTarballWriter struct {
 	size  int64
 
 	// Which file is currently open for writing:
-	openFileInfo *tarballFile
+	openFileInfo *TarballFile
 	openFile     *os.File
 }
 
-func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error) {
-	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
+func NewVirtualTarballWriter(files []*TarballFile) (*VirtualTarballWriter, error) {
+	filesInternal := tarballFileList(make([]*TarballFile, 0, len(files)))
 
 	uniquePaths := make(map[string]string)
 	size := int64(0)
@@ -40,11 +40,11 @@ func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error)
 		}
 		uniquePaths[f.Path] = f.Path
 
-		filesInternal = append(filesInternal, &tarballFile{
-			TarballFile: f,
-			offset:      size,
-		})
-		size += f.Size
+		f.offset = size
+		filesInternal = append(filesInternal, f)
+
+		// Each file ends with a terminating NUL character so at least one call to WriteAt or ReadAt will happen to create/read all files.
+		size += f.Size + 1
 	}
 
 	// Sort files for consistency:
@@ -99,59 +99,79 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 	total := 0
 	remainder := buf[:]
 	for _, tf := range t.files {
-		if offset < tf.offset || offset >= tf.offset+tf.Size {
+		if offset < tf.offset || offset >= tf.offset+tf.Size+1 {
 			continue
 		}
 
-		// Create file if not already:
-		if t.openFileInfo != tf {
-			// Close and finalize last open file:
-			if t.openFileInfo != nil {
-				t.closeFile()
+		if tf.Mode&os.ModeSymlink == os.ModeSymlink {
+			// Create symlink:
+			err := os.Symlink(tf.Path, tf.SymlinkDestination)
+			if err != nil {
+				return 0, err
 			}
+		} else if tf.Size > 0 {
+			// Create file if not already:
+			if t.openFileInfo != tf {
+				// Close and finalize last open file:
+				if t.openFileInfo != nil {
+					t.closeFile()
+				}
 
-			// Try to mkdir all paths involved:
-			dir, _ := filepath.Split(tf.Path)
-			if dir != "" {
-				// TODO: record directory entries for their modes.
-				// Make sure directories are at least rwx by owner:
-				err := os.MkdirAll(dir, tf.Mode|0700)
+				// Try to mkdir all paths involved:
+				dir, _ := filepath.Split(tf.Path)
+				if dir != "" {
+					// TODO: record directory entries for their modes.
+					// Make sure directories are at least rwx by owner:
+					err := os.MkdirAll(dir, tf.Mode|0700)
+					if err != nil {
+						return 0, err
+					}
+				}
+
+				f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
 				if err != nil {
 					return 0, err
 				}
-			}
 
-			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
-			if err != nil {
-				return 0, err
-			}
+				// Reserve disk space:
+				err = f.Truncate(tf.Size)
+				if err != nil {
+					return 0, err
+				}
 
-			// Reserve disk space:
-			err = f.Truncate(tf.Size)
-			if err != nil {
-				return 0, err
+				t.openFile = f
+				t.openFileInfo = tf
 			}
-
-			t.openFile = f
-			t.openFileInfo = tf
 		}
 
 		localOffset := offset - tf.offset
-
-		// Perform write:
-		p := remainder
-		if localOffset+int64(len(p)) > tf.Size {
-			p = remainder[:tf.Size-localOffset]
-		}
-		if len(p) > 0 {
-			// NOTE: we allow len(p) == 0 to create file as a side effect in case that's useful.
-			n, err := t.openFile.WriteAt(p, localOffset)
-			if err != nil {
-				return 0, err
+		if localOffset < tf.Size {
+			// Perform write:
+			p := remainder
+			if localOffset+int64(len(p)) > tf.Size {
+				p = remainder[:tf.Size-localOffset]
 			}
-			total += n
-			offset += int64(n)
-			remainder = remainder[n:]
+			if len(p) > 0 {
+				// NOTE: we allow len(p) == 0 to create file as a side effect in case that's useful.
+				n, err := t.openFile.WriteAt(p, localOffset)
+				if err != nil {
+					return 0, err
+				}
+				total += n
+				offset += int64(n)
+				localOffset += int64(n)
+				remainder = remainder[n:]
+			}
+		}
+
+		// Expect trailing NUL padding byte:
+		if offset == tf.offset+tf.Size && len(remainder) > 0 {
+			if remainder[0] != 0 {
+				return 0, ErrBadPaddingByte
+			}
+			remainder = remainder[1:]
+			offset++
+			total++
 		}
 
 		// Keep iterating files until we have no more to write:

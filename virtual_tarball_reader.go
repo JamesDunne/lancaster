@@ -4,6 +4,7 @@ package main
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,12 +17,12 @@ type VirtualTarballReader struct {
 	hashId []byte
 
 	// Currently open file for reading:
-	openFileInfo *tarballFile
+	openFileInfo *TarballFile
 	openFile     *os.File
 }
 
-func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error) {
-	filesInternal := tarballFileList(make([]*tarballFile, 0, len(files)))
+func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error) {
+	filesInternal := tarballFileList(make([]*TarballFile, 0, len(files)))
 
 	uniquePaths := make(map[string]string)
 	size := int64(0)
@@ -37,6 +38,29 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 			}
 		}
 
+		// Validate LocalPaths:
+		if f.LocalPath == "" {
+			return nil, ErrMissingLocalPath
+		}
+		stat, err := os.Lstat(f.LocalPath)
+		if err != nil {
+			return nil, err
+		}
+		// TODO: remove this limitation and allow directory entries to have their own permission bits
+		if stat.IsDir() {
+			return nil, ErrFilesOnly
+		}
+		if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
+			// Make sure symlink destination is set:
+			if f.SymlinkDestination == "" {
+				// Read symlink:
+				f.SymlinkDestination, err = os.Readlink(f.LocalPath)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+
 		// Validate all paths are unique:
 		if _, ok := uniquePaths[f.Path]; ok {
 			return nil, ErrDuplicatePaths
@@ -44,11 +68,11 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 		uniquePaths[f.Path] = f.Path
 
 		// Keep track of the file internally:
-		filesInternal = append(filesInternal, &tarballFile{
-			TarballFile: f,
-			offset:      size,
-		})
-		size += f.Size
+		f.offset = size
+		filesInternal = append(filesInternal, f)
+
+		// Each file ends with a terminating NUL character so at least one call to WriteAt or ReadAt will happen to create/read all files.
+		size += f.Size + 1
 	}
 
 	// Sort files for consistency:
@@ -121,43 +145,59 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 	total := 0
 	remainder := buf[:]
 	for _, tf := range t.files {
-		if offset < tf.offset || offset >= tf.offset+tf.Size {
+		if offset < tf.offset || offset >= tf.offset+tf.Size+1 {
 			continue
 		}
 
-		// Open file if not already:
-		if t.openFileInfo != tf {
-			// Close and finalize last open file:
-			if t.openFileInfo != nil {
-				t.closeFile()
+		readerAt := io.ReaderAt(nil)
+		// Only open normal, non-empty files:
+		if tf.Mode&os.ModeType == 0 && tf.Size > 0 {
+			// Open file if not already:
+			if t.openFileInfo != tf {
+				// Close and finalize last open file:
+				if t.openFileInfo != nil {
+					t.closeFile()
+				}
+
+				f, err := os.OpenFile(tf.LocalPath, os.O_RDONLY, 0)
+				if err != nil {
+					return 0, err
+				}
+
+				t.openFile = f
+				t.openFileInfo = tf
 			}
 
-			f, err := os.OpenFile(tf.LocalPath, os.O_RDONLY, 0)
-			if err != nil {
-				return 0, err
-			}
-
-			t.openFile = f
-			t.openFileInfo = tf
+			readerAt = t.openFile
 		}
 
 		localOffset := offset - tf.offset
-
-		// Perform read:
-		p := remainder
-		if localOffset+int64(len(p)) > tf.Size {
-			p = remainder[:tf.Size-localOffset]
-		}
-		if len(p) > 0 {
-			// NOTE: we allow len(p) == 0 as a side effect in case that's useful.
-			n, err := t.openFile.ReadAt(p, localOffset)
-			if err != nil {
-				return 0, err
+		if localOffset < tf.Size {
+			// Perform read from file:
+			p := remainder
+			if localOffset+int64(len(p)) > tf.Size {
+				p = remainder[:tf.Size-localOffset]
 			}
+			if len(p) > 0 {
+				// NOTE: we allow len(p) == 0 as a side effect in case that's useful.
+				n, err := readerAt.ReadAt(p, localOffset)
+				if err != nil {
+					return 0, err
+				}
 
-			total += n
-			offset += int64(n)
-			remainder = remainder[n:]
+				total += n
+				offset += int64(n)
+				localOffset += int64(n)
+				remainder = remainder[n:]
+			}
+		}
+
+		// Fill in trailing NUL padding byte:
+		if offset == tf.offset+tf.Size && len(remainder) > 0 {
+			remainder[0] = 0
+			remainder = remainder[1:]
+			offset++
+			total++
 		}
 
 		// Keep iterating files until we have no more to read:

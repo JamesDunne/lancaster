@@ -10,10 +10,13 @@ import (
 )
 
 var (
-	ErrOutOfRange     = errors.New("offset out of range")
-	ErrNilBuffer      = errors.New("nil buffer")
-	ErrBadPAth        = errors.New("bad path")
-	ErrDuplicatePaths = errors.New("not all paths are unique")
+	ErrOutOfRange       = errors.New("offset out of range")
+	ErrNilBuffer        = errors.New("nil buffer")
+	ErrBadPAth          = errors.New("bad path")
+	ErrDuplicatePaths   = errors.New("not all paths are unique")
+	ErrMissingLocalPath = errors.New("missing LocalPath")
+	ErrFilesOnly        = errors.New("LocalPaths may only reference files not directories")
+	ErrBadPaddingByte   = errors.New("expected 0 padding byte")
 )
 
 type ReaderAtCloser interface {
@@ -27,19 +30,16 @@ type WriterAtCloser interface {
 }
 
 type TarballFile struct {
-	Path      string
-	LocalPath string
-	Size      int64
-	Mode      os.FileMode
-}
-
-type tarballFile struct {
-	TarballFile
+	Path               string
+	LocalPath          string
+	Size               int64
+	Mode               os.FileMode
+	SymlinkDestination string
 
 	offset int64
 }
 
-type tarballFileList []*tarballFile
+type tarballFileList []*TarballFile
 
 func (l tarballFileList) Len() int           { return len(l) }
 func (l tarballFileList) Less(i, j int) bool { return strings.Compare(l[i].Path, l[j].Path) == 0 }
