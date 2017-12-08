@@ -86,6 +86,40 @@ func (t *VirtualTarballWriter) Close() error {
 	return t.closeFile()
 }
 
+func (t *VirtualTarballWriter) makeSymlink(tf *TarballFile) error {
+	_, err := os.Lstat(tf.Path)
+	if err != nil {
+		// Dont bother recreating if exists:
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	// Get current working directory:
+	wd := ""
+	wd, err = os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	err = os.Chdir(filepath.Base(tf.Path))
+	if err != nil {
+		return err
+	}
+
+	// Change directory back to what it was before exiting:
+	defer func() {
+		err = os.Chdir(wd)
+	}()
+
+	// Create symlink from directory:
+	err = os.Symlink(tf.Path, tf.SymlinkDestination)
+
+	// Return the last error (possibly from defer):
+	return err
+}
+
 // io.WriterAt:
 func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 	if buf == nil {
@@ -104,8 +138,8 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 		}
 
 		if tf.Mode&os.ModeSymlink == os.ModeSymlink {
-			// Create symlink:
-			err := os.Symlink(tf.Path, tf.SymlinkDestination)
+			// Create symlink if not exists:
+			err := t.makeSymlink(tf)
 			if err != nil {
 				return 0, err
 			}
@@ -130,7 +164,18 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 
 				f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
 				if err != nil {
-					return 0, err
+					if os.IsPermission(err) {
+						// chmod existing file to be able to write:
+						err = os.Chmod(tf.Path, tf.Mode|0700)
+						if err != nil {
+							return 0, err
+						}
+						// Try to reopen for writing:
+						f, err = os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
+					}
+					if err != nil {
+						return 0, err
+					}
 				}
 
 				// Reserve disk space:

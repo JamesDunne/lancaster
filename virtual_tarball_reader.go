@@ -51,6 +51,8 @@ func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error
 			return nil, ErrFilesOnly
 		}
 		if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
+			// Make sure size is 0 since we don't store contents for symlinks:
+			f.Size = 0
 			// Make sure symlink destination is set:
 			if f.SymlinkDestination == "" {
 				// Read symlink:
