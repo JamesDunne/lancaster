@@ -145,6 +145,23 @@ Folders are added without recursion unless appended with a ':::'`,
 				return nil
 			},
 		},
+		cli.Command{
+			Name:  "ls",
+			Usage: "compute list of files",
+			Action: func(c *cli.Context) error {
+				tb, err := buildTarball(c.Args())
+				if err != nil {
+					return err
+				}
+				tb.Close()
+				fmt.Print("Files:\n")
+				for _, f := range tb.files {
+					fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
+				}
+				fmt.Printf("%s\n", hex.EncodeToString(tb.HashId()))
+				return nil
+			},
+		},
 	}
 
 	app.RunAndExitOnError()
