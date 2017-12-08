@@ -88,12 +88,11 @@ func (t *VirtualTarballWriter) Close() error {
 
 func (t *VirtualTarballWriter) makeSymlink(tf *TarballFile) error {
 	_, err := os.Lstat(tf.Path)
+	// Dont bother recreating if exists:
 	if err != nil {
-		// Dont bother recreating if exists:
-		if os.IsNotExist(err) {
-			return nil
+		if !os.IsNotExist(err) {
+			return err
 		}
-		return err
 	}
 
 	// Get current working directory:
@@ -103,7 +102,13 @@ func (t *VirtualTarballWriter) makeSymlink(tf *TarballFile) error {
 		return err
 	}
 
-	err = os.Chdir(filepath.Base(tf.Path))
+	dir, fileName := filepath.Split(tf.Path)
+	err = os.MkdirAll(dir, tf.Mode|0700)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chdir(dir)
 	if err != nil {
 		return err
 	}
@@ -114,7 +119,7 @@ func (t *VirtualTarballWriter) makeSymlink(tf *TarballFile) error {
 	}()
 
 	// Create symlink from directory:
-	err = os.Symlink(tf.Path, tf.SymlinkDestination)
+	err = os.Symlink(tf.SymlinkDestination, fileName)
 
 	// Return the last error (possibly from defer):
 	return err
