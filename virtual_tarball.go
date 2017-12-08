@@ -37,8 +37,6 @@ type tarballFile struct {
 	TarballFile
 
 	offset int64
-	writer WriterAtCloser
-	reader ReaderAtCloser
 }
 
 type tarballFileList []*tarballFile

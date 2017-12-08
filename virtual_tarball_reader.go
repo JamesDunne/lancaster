@@ -14,6 +14,10 @@ type VirtualTarballReader struct {
 	files  tarballFileList
 	size   int64
 	hashId []byte
+
+	// Currently open file for reading:
+	openFileInfo *tarballFile
+	openFile     *os.File
 }
 
 func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error) {
@@ -43,8 +47,6 @@ func NewVirtualTarballReader(files []TarballFile) (*VirtualTarballReader, error)
 		filesInternal = append(filesInternal, &tarballFile{
 			TarballFile: f,
 			offset:      size,
-			writer:      nil,
-			reader:      nil,
 		})
 		size += f.Size
 	}
@@ -76,17 +78,34 @@ func (t *VirtualTarballReader) HashId() []byte {
 	return t.hashId
 }
 
+func (t *VirtualTarballReader) closeFile() error {
+	if t.openFileInfo == nil {
+		t.openFile = nil
+		return nil
+	}
+	if t.openFile == nil {
+		t.openFileInfo = nil
+		return nil
+	}
+
+	err := t.openFile.Chmod(t.openFileInfo.Mode)
+	if err != nil {
+		return err
+	}
+
+	err = t.openFile.Close()
+	if err != nil {
+		return err
+	}
+
+	t.openFile = nil
+	t.openFileInfo = nil
+	return nil
+}
+
 // io.Closer:
 func (t *VirtualTarballReader) Close() error {
-	for _, tf := range t.files {
-		if tf.reader != nil {
-			err := tf.reader.Close()
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return t.closeFile()
 }
 
 // io.ReaderAt:
@@ -107,13 +126,19 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 		}
 
 		// Open file if not already:
-		if tf.reader == nil {
+		if t.openFileInfo != tf {
+			// Close and finalize last open file:
+			if t.openFileInfo != nil {
+				t.closeFile()
+			}
+
 			f, err := os.OpenFile(tf.LocalPath, os.O_RDONLY, 0)
 			if err != nil {
 				return 0, err
 			}
 
-			tf.reader = f
+			t.openFile = f
+			t.openFileInfo = tf
 		}
 
 		localOffset := offset - tf.offset
@@ -125,7 +150,7 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 		}
 		if len(p) > 0 {
 			// NOTE: we allow len(p) == 0 as a side effect in case that's useful.
-			n, err := tf.reader.ReadAt(p, localOffset)
+			n, err := t.openFile.ReadAt(p, localOffset)
 			if err != nil {
 				return 0, err
 			}
