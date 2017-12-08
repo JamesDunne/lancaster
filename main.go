@@ -36,7 +36,7 @@ func main() {
 	app.Name = "lancaster"
 	app.Usage = "a multicast file transfer tool"
 	app.Description = "Lancaster is a UDP multicast file transfer tool designed to efficiently utilize network resources in the transmission of large payloads of multiple files and folders to one or more clients."
-	app.Version = "1.0.0"
+	app.Version = "v0.1.0"
 	app.Authors = []cli.Author{
 		{Name: "James Dunne", Email: "james.jdunne@gmail.com"},
 	}
