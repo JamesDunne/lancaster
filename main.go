@@ -194,7 +194,11 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 			}
 		}
 
-		localPath = filepath.Clean(localPath)
+		localPath, err := filepath.Abs(localPath)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+			continue
+		}
 
 		stat, err := os.Stat(localPath)
 		if err != nil {
