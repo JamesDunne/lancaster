@@ -87,6 +87,7 @@ func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error
 		all.Write([]byte(f.Path))
 		binary.Write(all, byteOrder, f.Size)
 		binary.Write(all, byteOrder, f.Mode)
+		all.Write([]byte(f.SymlinkDestination))
 	}
 
 	// Sum the 64-bit hash:
@@ -153,7 +154,7 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 
 		readerAt := io.ReaderAt(nil)
 		// Only open normal, non-empty files:
-		if tf.Mode&os.ModeType == 0 && tf.Size > 0 {
+		if tf.Mode&os.ModeType == 0 {
 			// Open file if not already:
 			if t.openFileInfo != tf {
 				// Close and finalize last open file:

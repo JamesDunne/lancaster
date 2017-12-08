@@ -143,7 +143,7 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 			if err != nil {
 				return 0, err
 			}
-		} else if tf.Size > 0 {
+		} else {
 			// Create file if not already:
 			if t.openFileInfo != tf {
 				// Close and finalize last open file:
