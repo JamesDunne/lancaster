@@ -73,9 +73,10 @@ func TestReadAt_OneFile(t *testing.T) {
 
 	files := []TarballFile{
 		TarballFile{
-			Path: fname,
-			Size: mainFile.Size(),
-			Mode: mainFile.Mode(),
+			Path:      fname,
+			LocalPath: fname,
+			Size:      mainFile.Size(),
+			Mode:      mainFile.Mode(),
 		},
 	}
 
@@ -134,14 +135,16 @@ func TestReadAt_SpanningFiles(t *testing.T) {
 
 	files := []TarballFile{
 		TarballFile{
-			Path: fname1,
-			Size: testFile1.Size(),
-			Mode: testFile1.Mode(),
+			Path:      fname1,
+			LocalPath: fname1,
+			Size:      testFile1.Size(),
+			Mode:      testFile1.Mode(),
 		},
 		TarballFile{
-			Path: fname2,
-			Size: testFile2.Size(),
-			Mode: testFile2.Mode(),
+			Path:      fname2,
+			LocalPath: fname2,
+			Size:      testFile2.Size(),
+			Mode:      testFile2.Mode(),
 		},
 	}
 

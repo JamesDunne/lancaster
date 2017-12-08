@@ -6,7 +6,7 @@ import (
 )
 
 func newTarballWriter(t *testing.T, files []TarballFile) *VirtualTarballWriter {
-	tb, err := NewVirtualTarballWriter(files, nil)
+	tb, err := NewVirtualTarballWriter(files)
 	if err != nil {
 		panic(err)
 	}

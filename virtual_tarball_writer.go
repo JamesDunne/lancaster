@@ -11,6 +11,10 @@ import (
 type VirtualTarballWriter struct {
 	files tarballFileList
 	size  int64
+
+	// Which file is currently open for writing:
+	openFileInfo *tarballFile
+	openFile     *os.File
 }
 
 func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error) {
@@ -39,8 +43,6 @@ func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error)
 		filesInternal = append(filesInternal, &tarballFile{
 			TarballFile: f,
 			offset:      size,
-			writer:      nil,
-			reader:      nil,
 		})
 		size += f.Size
 	}
@@ -54,17 +56,34 @@ func NewVirtualTarballWriter(files []TarballFile) (*VirtualTarballWriter, error)
 	}, nil
 }
 
+func (t *VirtualTarballWriter) closeFile() error {
+	if t.openFileInfo == nil {
+		t.openFile = nil
+		return nil
+	}
+	if t.openFile == nil {
+		t.openFileInfo = nil
+		return nil
+	}
+
+	err := t.openFile.Chmod(t.openFileInfo.Mode)
+	if err != nil {
+		return err
+	}
+
+	err = t.openFile.Close()
+	if err != nil {
+		return err
+	}
+
+	t.openFile = nil
+	t.openFileInfo = nil
+	return nil
+}
+
 // io.Closer:
 func (t *VirtualTarballWriter) Close() error {
-	for _, tf := range t.files {
-		if tf.writer != nil {
-			err := tf.writer.Close()
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return t.closeFile()
 }
 
 // io.WriterAt:
@@ -85,10 +104,16 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 		}
 
 		// Create file if not already:
-		if tf.writer == nil {
+		if t.openFileInfo != tf {
+			// Close and finalize last open file:
+			if t.openFileInfo != nil {
+				t.closeFile()
+			}
+
 			// Try to mkdir all paths involved:
 			dir, _ := filepath.Split(tf.Path)
 			if dir != "" {
+				// TODO: record directory entries for their modes.
 				// Make sure directories are at least rwx by owner:
 				err := os.MkdirAll(dir, tf.Mode|0700)
 				if err != nil {
@@ -96,18 +121,9 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 				}
 			}
 
-			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode)
+			f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
 			if err != nil {
-				if os.IsPermission(err) {
-					// If permission denied, attempt to add -w- to owner:
-					tf.Mode |= 0200
-					f, err = os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode)
-					if err != nil {
-						return 0, err
-					}
-				} else {
-					return 0, err
-				}
+				return 0, err
 			}
 
 			// Reserve disk space:
@@ -116,7 +132,8 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 				return 0, err
 			}
 
-			tf.writer = f
+			t.openFile = f
+			t.openFileInfo = tf
 		}
 
 		localOffset := offset - tf.offset
@@ -128,7 +145,7 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 		}
 		if len(p) > 0 {
 			// NOTE: we allow len(p) == 0 to create file as a side effect in case that's useful.
-			n, err := tf.writer.WriteAt(p, localOffset)
+			n, err := t.openFile.WriteAt(p, localOffset)
 			if err != nil {
 				return 0, err
 			}
