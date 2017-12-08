@@ -122,7 +122,10 @@ func (s *Server) sendDataLoop() {
 	for {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
-		s.sendData()
+		err := s.sendData()
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		}
 	}
 }
 
