@@ -12,11 +12,12 @@ import (
 var (
 	ErrOutOfRange       = errors.New("offset out of range")
 	ErrNilBuffer        = errors.New("nil buffer")
-	ErrBadPAth          = errors.New("bad path")
+	ErrBadPath          = errors.New("bad path")
 	ErrDuplicatePaths   = errors.New("not all paths are unique")
 	ErrMissingLocalPath = errors.New("missing LocalPath")
 	ErrFilesOnly        = errors.New("LocalPaths may only reference files not directories")
 	ErrBadPaddingByte   = errors.New("expected 0 padding byte")
+	ErrCompatViolation  = errors.New("compat mode violation")
 )
 
 type ReaderAtCloser interface {
@@ -37,6 +38,11 @@ type TarballFile struct {
 	SymlinkDestination string
 
 	offset int64
+}
+
+type VirtualTarballOptions struct {
+	// Enables compatibility mode to be lowest common denominator of filesystem support, i.e. no chmod or symlinks
+	CompatMode bool
 }
 
 type tarballFileList []*TarballFile

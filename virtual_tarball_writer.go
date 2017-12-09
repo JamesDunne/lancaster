@@ -12,25 +12,31 @@ type VirtualTarballWriter struct {
 	files tarballFileList
 	size  int64
 
+	options VirtualTarballOptions
+
 	// Which file is currently open for writing:
 	openFileInfo *TarballFile
 	openFile     *os.File
 }
 
-func NewVirtualTarballWriter(files []*TarballFile) (*VirtualTarballWriter, error) {
-	filesInternal := tarballFileList(make([]*TarballFile, 0, len(files)))
+func NewVirtualTarballWriter(files []*TarballFile, options VirtualTarballOptions) (*VirtualTarballWriter, error) {
+	t := &VirtualTarballWriter{
+		files:   tarballFileList(make([]*TarballFile, 0, len(files))),
+		options: options,
+		size:    0,
+	}
 
 	uniquePaths := make(map[string]string)
-	size := int64(0)
+	t.size = int64(0)
 	for _, f := range files {
 		// Validate paths:
 		if filepath.IsAbs(f.Path) {
-			return nil, ErrBadPAth
+			return nil, ErrBadPath
 		}
 		s := strings.Split(f.Path, string(filepath.Separator))
 		for _, p := range s {
 			if p == "." || p == ".." {
-				return nil, ErrBadPAth
+				return nil, ErrBadPath
 			}
 		}
 
@@ -40,20 +46,17 @@ func NewVirtualTarballWriter(files []*TarballFile) (*VirtualTarballWriter, error
 		}
 		uniquePaths[f.Path] = f.Path
 
-		f.offset = size
-		filesInternal = append(filesInternal, f)
+		f.offset = t.size
+		t.files = append(t.files, f)
 
 		// Each file ends with a terminating NUL character so at least one call to WriteAt or ReadAt will happen to create/read all files.
-		size += f.Size + 1
+		t.size += f.Size + 1
 	}
 
 	// Sort files for consistency:
-	sort.Sort(filesInternal)
+	sort.Sort(t.files)
 
-	return &VirtualTarballWriter{
-		files: filesInternal,
-		size:  size,
-	}, nil
+	return t, nil
 }
 
 func (t *VirtualTarballWriter) closeFile() error {
@@ -66,12 +69,14 @@ func (t *VirtualTarballWriter) closeFile() error {
 		return nil
 	}
 
-	err := t.openFile.Chmod(t.openFileInfo.Mode)
-	if err != nil {
-		return err
+	if !t.options.CompatMode {
+		err := t.openFile.Chmod(t.openFileInfo.Mode)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = t.openFile.Close()
+	err := t.openFile.Close()
 	if err != nil {
 		return err
 	}

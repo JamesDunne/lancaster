@@ -19,6 +19,7 @@ func main() {
 	address := ""
 	ttl := 0
 	loopbackEnable := false
+	options := VirtualTarballOptions{}
 
 	createMulticast := func() (*Multicast, error) {
 		m, err := NewMulticast(address, netInterface)
@@ -66,6 +67,11 @@ func main() {
 			Usage:       "Enable loopback support for testing",
 			Destination: &loopbackEnable,
 		},
+		cli.BoolFlag{
+			Name:        "compat,c",
+			Usage:       "Enable compatibility mode to only share non-special files across incompatible OS/filesystems",
+			Destination: &options.CompatMode,
+		},
 	}
 	app.Before = func(c *cli.Context) error {
 		// Find network interface by name:
@@ -103,7 +109,7 @@ func main() {
 					}
 				}
 
-				cl := NewClient(m, hashId)
+				cl := NewClient(m, hashId, options)
 				return cl.Run()
 			},
 		},
@@ -116,7 +122,11 @@ func main() {
 Files can be renamed by having '::' separating the local filename and the renamed file.
 Folders are added without recursion unless appended with a ':::'`,
 			Action: func(c *cli.Context) error {
-				tb, err := buildTarball(c.Args())
+				files, err := buildTarball(c.Args())
+				if err != nil {
+					return err
+				}
+				tb, err := NewVirtualTarballReader(files, options)
 				if err != nil {
 					return err
 				}
@@ -137,7 +147,11 @@ Folders are added without recursion unless appended with a ':::'`,
 			Aliases: []string{"i"},
 			Usage:   "compute id for list of files",
 			Action: func(c *cli.Context) error {
-				tb, err := buildTarball(c.Args())
+				files, err := buildTarball(c.Args())
+				if err != nil {
+					return err
+				}
+				tb, err := NewVirtualTarballReader(files, options)
 				if err != nil {
 					return err
 				}
@@ -150,7 +164,11 @@ Folders are added without recursion unless appended with a ':::'`,
 			Name:  "ls",
 			Usage: "compute list of files",
 			Action: func(c *cli.Context) error {
-				tb, err := buildTarball(c.Args())
+				files, err := buildTarball(c.Args())
+				if err != nil {
+					return err
+				}
+				tb, err := NewVirtualTarballReader(files, options)
 				if err != nil {
 					return err
 				}
@@ -169,7 +187,7 @@ Folders are added without recursion unless appended with a ':::'`,
 	return
 }
 
-func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
+func buildTarball(args cli.Args) ([]*TarballFile, error) {
 	if !args.Present() {
 		return nil, errors.New("Require arguments to specify which files to serve")
 	}
@@ -279,6 +297,5 @@ func buildTarball(args cli.Args) (*VirtualTarballReader, error) {
 		return nil, errors.New("no files to serve")
 	}
 
-	// Treat collection of files as virtual tarball for reading:
-	return NewVirtualTarballReader(files)
+	return files, nil
 }

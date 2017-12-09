@@ -27,6 +27,8 @@ type Client struct {
 	m  *Multicast
 	tb *VirtualTarballWriter
 
+	options VirtualTarballOptions
+
 	state       ClientState
 	resendTimer <-chan time.Time
 
@@ -46,11 +48,12 @@ type Client struct {
 	endTime   time.Time
 }
 
-func NewClient(m *Multicast, hashId []byte) *Client {
+func NewClient(m *Multicast, hashId []byte, options VirtualTarballOptions) *Client {
 	return &Client{
-		m:      m,
-		state:  ExpectAnnouncement,
-		hashId: hashId,
+		m:       m,
+		options: options,
+		state:   ExpectAnnouncement,
+		hashId:  hashId,
 	}
 }
 
@@ -351,7 +354,7 @@ func (c *Client) decodeMetadata() error {
 	}
 
 	// Create a writer:
-	c.tb, err = NewVirtualTarballWriter(files)
+	c.tb, err = NewVirtualTarballWriter(files, c.options)
 	if err != nil {
 		return err
 	}

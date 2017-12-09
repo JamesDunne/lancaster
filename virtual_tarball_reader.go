@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash/fnv"
 	"io"
 	"os"
@@ -16,25 +17,31 @@ type VirtualTarballReader struct {
 	size   int64
 	hashId []byte
 
+	options VirtualTarballOptions
+
 	// Currently open file for reading:
 	openFileInfo *TarballFile
 	openFile     *os.File
 }
 
-func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error) {
-	filesInternal := tarballFileList(make([]*TarballFile, 0, len(files)))
+func NewVirtualTarballReader(files []*TarballFile, options VirtualTarballOptions) (*VirtualTarballReader, error) {
+	t := &VirtualTarballReader{
+		files:   tarballFileList(make([]*TarballFile, 0, len(files))),
+		options: options,
+	}
 
 	uniquePaths := make(map[string]string)
-	size := int64(0)
+	t.size = int64(0)
 	for _, f := range files {
 		// Validate paths:
 		if filepath.IsAbs(f.Path) {
-			return nil, ErrBadPAth
+			return nil, ErrBadPath
 		}
-		s := strings.Split(f.Path, string(filepath.Separator))
+
+		s := strings.Split(f.Path, "/")
 		for _, p := range s {
 			if p == "." || p == ".." {
-				return nil, ErrBadPAth
+				return nil, ErrBadPath
 			}
 		}
 
@@ -50,15 +57,21 @@ func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error
 		if stat.IsDir() {
 			return nil, ErrFilesOnly
 		}
-		if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
-			// Make sure size is 0 since we don't store contents for symlinks:
-			f.Size = 0
-			// Make sure symlink destination is set:
-			if f.SymlinkDestination == "" {
-				// Read symlink:
-				f.SymlinkDestination, err = os.Readlink(f.LocalPath)
-				if err != nil {
-					return nil, err
+		if t.options.CompatMode {
+			if stat.Mode()&os.ModeType != 0 {
+				return nil, ErrCompatViolation
+			}
+		} else {
+			if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
+				// Make sure size is 0 since we don't store contents for symlinks:
+				f.Size = 0
+				// Make sure symlink destination is set:
+				if f.SymlinkDestination == "" {
+					// Read symlink:
+					f.SymlinkDestination, err = os.Readlink(f.LocalPath)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
@@ -70,19 +83,19 @@ func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error
 		uniquePaths[f.Path] = f.Path
 
 		// Keep track of the file internally:
-		f.offset = size
-		filesInternal = append(filesInternal, f)
+		f.offset = t.size
+		t.files = append(t.files, f)
 
 		// Each file ends with a terminating NUL character so at least one call to WriteAt or ReadAt will happen to create/read all files.
-		size += f.Size + 1
+		t.size += f.Size + 1
 	}
 
 	// Sort files for consistency:
-	sort.Sort(filesInternal)
+	sort.Sort(t.files)
 
 	// Generate a 64-bit hash for identification purposes:
 	all := fnv.New64a()
-	for _, f := range filesInternal {
+	for _, f := range t.files {
 		// Write unique data about file into collection hash:
 		all.Write([]byte(f.Path))
 		binary.Write(all, byteOrder, f.Size)
@@ -91,14 +104,10 @@ func NewVirtualTarballReader(files []*TarballFile) (*VirtualTarballReader, error
 	}
 
 	// Sum the 64-bit hash:
-	hashId := make([]byte, 8)
-	byteOrder.PutUint64(hashId, all.Sum64())
+	t.hashId = make([]byte, 8)
+	byteOrder.PutUint64(t.hashId, all.Sum64())
 
-	return &VirtualTarballReader{
-		files:  filesInternal,
-		size:   size,
-		hashId: hashId,
-	}, nil
+	return t, nil
 }
 
 func (t *VirtualTarballReader) HashId() []byte {
@@ -115,12 +124,14 @@ func (t *VirtualTarballReader) closeFile() error {
 		return nil
 	}
 
-	err := t.openFile.Chmod(t.openFileInfo.Mode)
-	if err != nil {
-		return err
+	if !t.options.CompatMode {
+		err := t.openFile.Chmod(t.openFileInfo.Mode)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = t.openFile.Close()
+	err := t.openFile.Close()
 	if err != nil {
 		return err
 	}
@@ -154,6 +165,7 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 
 		readerAt := io.ReaderAt(nil)
 		// Only open normal, non-empty files:
+		fmt.Printf("%v %s\n", tf.LocalPath, tf.Mode)
 		if tf.Mode&os.ModeType == 0 {
 			// Open file if not already:
 			if t.openFileInfo != tf {

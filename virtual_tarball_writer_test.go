@@ -6,7 +6,7 @@ import (
 )
 
 func newTarballWriter(t *testing.T, files []*TarballFile) *VirtualTarballWriter {
-	tb, err := NewVirtualTarballWriter(files)
+	tb, err := NewVirtualTarballWriter(files, getOptions())
 	if err != nil {
 		panic(err)
 	}
@@ -21,12 +21,12 @@ func closeTarballWriter(t *testing.T, tb *VirtualTarballWriter) {
 
 	// Delete files after test:
 	for _, f := range tb.files {
-		verifyFile(t, f)
+		verifyFile(t, f, tb)
 		os.Remove(f.Path)
 	}
 }
 
-func verifyFile(t *testing.T, f *TarballFile) {
+func verifyFile(t *testing.T, f *TarballFile, tb *VirtualTarballWriter) {
 	stat, err := os.Lstat(f.Path)
 	if err != nil {
 		t.Fatalf("%s", err)
@@ -34,8 +34,10 @@ func verifyFile(t *testing.T, f *TarballFile) {
 	if stat.Size() != f.Size {
 		t.Fatalf("%s: size mistmatch; %d != %d", f.Path, stat.Size(), f.Size)
 	}
-	if stat.Mode() != f.Mode {
-		t.Fatalf("%s: mode mistmatch; %v != %v", f.Path, stat.Mode(), f.Mode)
+	if !tb.options.CompatMode {
+		if stat.Mode() != f.Mode {
+			t.Fatalf("%s: mode mistmatch; %v != %v", f.Path, stat.Mode(), f.Mode)
+		}
 	}
 }
 

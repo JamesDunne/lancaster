@@ -4,11 +4,20 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 )
 
+func getOptions() VirtualTarballOptions {
+	options := VirtualTarballOptions{}
+	if runtime.GOOS == "windows" {
+		options.CompatMode = true
+	}
+	return options
+}
+
 func newTarballReader(t *testing.T, files []*TarballFile) *VirtualTarballReader {
-	tb, err := NewVirtualTarballReader(files)
+	tb, err := NewVirtualTarballReader(files, getOptions())
 	if err != nil {
 		panic(err)
 	}
@@ -41,11 +50,11 @@ func TestTarball_BadPath1(t *testing.T) {
 		},
 	}
 
-	_, err := NewVirtualTarballReader(files)
+	_, err := NewVirtualTarballReader(files, getOptions())
 	if err == nil {
 		t.Fatal("Expected non-nil error")
 	}
-	if err != ErrBadPAth {
+	if err != ErrBadPath {
 		t.Fatal("Expected ErrBadPath")
 	}
 }
