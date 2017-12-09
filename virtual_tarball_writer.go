@@ -174,7 +174,7 @@ func (t *VirtualTarballWriter) WriteAt(buf []byte, offset int64) (int, error) {
 
 				f, err := os.OpenFile(tf.Path, os.O_WRONLY|os.O_CREATE, tf.Mode|0700)
 				if err != nil {
-					if os.IsPermission(err) {
+					if !t.options.CompatMode && os.IsPermission(err) {
 						// chmod existing file to be able to write:
 						err = os.Chmod(tf.Path, tf.Mode|0700)
 						if err != nil {

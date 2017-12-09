@@ -61,6 +61,8 @@ func NewVirtualTarballReader(files []*TarballFile, options VirtualTarballOptions
 			if stat.Mode()&os.ModeType != 0 {
 				return nil, ErrCompatViolation
 			}
+			// Force all chmods to -rw-r--r-- for compatibility purposes:
+			f.Mode = 0644
 		} else {
 			if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
 				// Make sure size is 0 since we don't store contents for symlinks:

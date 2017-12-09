@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/urfave/cli"
@@ -67,11 +68,18 @@ func main() {
 			Usage:       "Enable loopback support for testing",
 			Destination: &loopbackEnable,
 		},
-		cli.BoolFlag{
-			Name:        "compat,c",
-			Usage:       "Enable compatibility mode to only share non-special files across incompatible OS/filesystems",
-			Destination: &options.CompatMode,
-		},
+	}
+	if runtime.GOOS == "windows" {
+		// Windows needs compatibility mode always enabled:
+		options.CompatMode = true
+	} else {
+		app.Flags = append(app.Flags,
+			cli.BoolFlag{
+				Name:        "compat,c",
+				Usage:       "Enable compatibility mode to only share non-special files across incompatible OS/filesystems",
+				Destination: &options.CompatMode,
+			},
+		)
 	}
 	app.Before = func(c *cli.Context) error {
 		// Find network interface by name:
