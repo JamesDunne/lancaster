@@ -126,7 +126,7 @@ func (s *Server) reportBandwidth() {
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
 
-	fmt.Printf("%15.0f B/s         [%s]\r", float64(byteCount)/sec, s.nakRegions.ASCIIMeter(48))
+	fmt.Printf("%15.0f B/s        [%s]\r", float64(byteCount)/sec, s.nakRegions.ASCIIMeter(48))
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow
@@ -158,9 +158,6 @@ func (s *Server) sendData() error {
 	if err != nil {
 		return err
 	}
-	if int64(n) < int64(s.regionSize) {
-		fmt.Printf("n < regionSize: %d < %d\n", n, s.regionSize)
-	}
 	buf = buf[:n]
 
 	// Send data message:
@@ -169,6 +166,9 @@ func (s *Server) sendData() error {
 	m, err = s.m.SendData(dataMsg)
 	if err != nil {
 		return err
+	}
+	if m < len(buf) {
+		fmt.Printf("m < buf: %d < %d\n", m, len(buf))
 	}
 
 	s.bytesSent += int64(m)
@@ -187,8 +187,7 @@ func (s *Server) sendData() error {
 	s.nextRegion = nextNak
 
 	// Keep sending new packets while clients are connected:
-	if s.packetsSentSinceLastAck < s.m.bufferPacketCount {
-		s.packetsSentSinceLastAck++
+	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
 		select {
 		case s.allowSend <- empty{}:
 		default:
@@ -309,7 +308,6 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		// Start sending back at last ACK:
 		s.nextRegion = ack.endEx
 		s.lastClientDataRequest = time.Now()
-		s.packetsSentSinceLastAck--
 
 		// Allow sending data with a non-blocking channel send:
 		select {
