@@ -4,6 +4,7 @@ package main
 import (
 	"net"
 	"syscall"
+	"time"
 )
 
 // Data messages:
@@ -12,8 +13,6 @@ const (
 	MetadataSection
 	DataSection
 )
-
-const bufferScalar = 32
 
 type UDPMessage struct {
 	Error error
@@ -28,6 +27,8 @@ type Multicast struct {
 	bufferPacketCount int
 	ttl               int
 	loopback          bool
+
+	sleep time.Duration
 
 	controlToServerAddr *net.UDPAddr
 	controlToClientAddr *net.UDPAddr
@@ -251,13 +252,16 @@ func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) error {
 }
 
 func (m *Multicast) SendControlToServer(msg []byte) (int, error) {
-	return m.controlToServerConn.WriteToUDP(msg, m.controlToServerAddr)
+	n, err := m.controlToServerConn.WriteToUDP(msg, m.controlToServerAddr)
+	return n, err
 }
 
 func (m *Multicast) SendControlToClient(msg []byte) (int, error) {
-	return m.controlToClientConn.WriteToUDP(msg, m.controlToClientAddr)
+	n, err := m.controlToClientConn.WriteToUDP(msg, m.controlToClientAddr)
+	return n, err
 }
 
 func (m *Multicast) SendData(msg []byte) (int, error) {
-	return m.dataConn.WriteToUDP(msg, m.dataAddr)
+	n, err := m.dataConn.WriteToUDP(msg, m.dataAddr)
+	return n, err
 }

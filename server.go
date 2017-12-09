@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -24,9 +25,11 @@ type Server struct {
 	metadataHeader   []byte
 	metadataSections [][]byte
 
-	lastClientDataRequest time.Time
-	allowSend             chan empty
+	lastClientDataRequest   time.Time
+	packetsSentSinceLastAck int
+	allowSend               chan empty
 
+	nextLock    sync.Mutex
 	nakRegions  *NakRegions
 	nextRegion  int64
 	regionSize  uint16
@@ -103,18 +106,14 @@ func (s *Server) Run() error {
 			}
 			// Process client requests:
 			err := s.processControl(ctrl)
-			if isENOBUFS(err) {
-				time.Sleep(10 * time.Millisecond)
-			} else if err != nil {
-				fmt.Printf("%+v\n", err)
+			if err != nil {
+				fmt.Printf("%s\n", err)
 			}
 		case <-s.announceTicker:
 			// Announce transfer available:
 			_, err := s.m.SendControlToClient(s.announceMsg)
-			if isENOBUFS(err) {
-				time.Sleep(10 * time.Millisecond)
-			} else if err != nil {
-				fmt.Printf("%+v\n", err)
+			if err != nil {
+				fmt.Printf("%s\n", err)
 			}
 		case <-refreshTimer:
 			s.reportBandwidth()
@@ -141,9 +140,7 @@ func (s *Server) sendDataLoop() {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
 		err := s.sendData()
-		if isENOBUFS(err) {
-			time.Sleep(10 * time.Millisecond)
-		} else if err != nil {
+		if err != nil {
 			fmt.Printf("%s\n", err)
 		}
 	}
@@ -151,6 +148,8 @@ func (s *Server) sendDataLoop() {
 
 func (s *Server) sendData() error {
 	err := error(nil)
+	s.nextLock.Lock()
+	defer s.nextLock.Unlock()
 
 	// Read data from virtual tarball:
 	n := 0
@@ -189,12 +188,13 @@ func (s *Server) sendData() error {
 	s.nextRegion = nextNak
 
 	// Keep sending new packets while clients are connected:
-	//	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
-	//		select {
-	//		case s.allowSend <- empty{}:
-	//		default:
-	//		}
-	//	}
+	if s.packetsSentSinceLastAck < s.m.bufferPacketCount {
+		s.packetsSentSinceLastAck++
+		select {
+		case s.allowSend <- empty{}:
+		default:
+		}
+	}
 
 	return nil
 }
@@ -296,6 +296,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
 		// Read ACK and record it:
+		s.nextLock.Lock()
 		ack := Region{
 			start: int64(byteOrder.Uint64(data[0:8])),
 			endEx: int64(byteOrder.Uint64(data[8:16])),
@@ -307,12 +308,16 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			// ACK region:
 			s.nakRegions.Ack(ack.start, ack.endEx)
 		}
+		// Start sending back at last ACK:
+		//s.nextRegion = ack.endEx
 		// Allow sending data with a non-blocking channel send:
 		s.lastClientDataRequest = time.Now()
+		s.packetsSentSinceLastAck--
 		select {
 		case s.allowSend <- empty{}:
 		default:
 		}
+		s.nextLock.Unlock()
 		return nil
 	}
 
