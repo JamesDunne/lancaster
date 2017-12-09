@@ -3,7 +3,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 	"hash/fnv"
 	"io"
 	"os"
@@ -167,7 +166,6 @@ func (t *VirtualTarballReader) ReadAt(buf []byte, offset int64) (n int, err erro
 
 		readerAt := io.ReaderAt(nil)
 		// Only open normal, non-empty files:
-		fmt.Printf("%v %s\n", tf.LocalPath, tf.Mode)
 		if tf.Mode&os.ModeType == 0 {
 			// Open file if not already:
 			if t.openFileInfo != tf {
