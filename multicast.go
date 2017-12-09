@@ -4,7 +4,6 @@ package main
 import (
 	"net"
 	"syscall"
-	"time"
 )
 
 // Data messages:
@@ -27,8 +26,6 @@ type Multicast struct {
 	bufferPacketCount int
 	ttl               int
 	loopback          bool
-
-	sleep time.Duration
 
 	controlToServerAddr *net.UDPAddr
 	controlToClientAddr *net.UDPAddr
@@ -75,8 +72,8 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 
 	c := &Multicast{
 		netInterface:        netInterface,
-		datagramSize:        1500,
-		bufferPacketCount:   60000,
+		datagramSize:        65000,
+		bufferPacketCount:   10000,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,

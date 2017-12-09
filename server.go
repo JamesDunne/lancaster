@@ -158,6 +158,9 @@ func (s *Server) sendData() error {
 	if err != nil {
 		return err
 	}
+	if int64(n) < int64(s.regionSize) {
+		fmt.Printf("n < regionSize: %d < %d\n", n, s.regionSize)
+	}
 	buf = buf[:n]
 
 	// Send data message:
