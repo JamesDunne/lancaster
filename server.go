@@ -304,7 +304,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			s.nakRegions.Ack(ack.start, ack.endEx)
 		}
 		// Start sending back at last ACK:
-		//s.nextRegion = ack.endEx
+		s.nextRegion = ack.endEx
 		s.lastClientDataRequest = time.Now()
 		s.packetsSentSinceLastAck--
 
