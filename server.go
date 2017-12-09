@@ -14,6 +14,8 @@ type Server struct {
 	m  *Multicast
 	tb *VirtualTarballReader
 
+	options ServerOptions
+
 	hashId []byte
 
 	announceTicker <-chan time.Time
@@ -35,10 +37,19 @@ type Server struct {
 	timeLast      time.Time
 }
 
-func NewServer(m *Multicast, tb *VirtualTarballReader) *Server {
+type ServerOptions struct {
+	RefreshRate time.Duration
+}
+
+func NewServer(m *Multicast, tb *VirtualTarballReader, options ServerOptions) *Server {
+	if options.RefreshRate <= time.Duration(0) {
+		options.RefreshRate = time.Second
+	}
+
 	return &Server{
 		m:         m,
 		tb:        tb,
+		options:   options,
 		hashId:    tb.HashId(),
 		allowSend: make(chan empty, 1),
 	}
@@ -76,7 +87,7 @@ func (s *Server) Run() error {
 	s.announceMsg = controlToClientMessage(s.hashId, AnnounceTarball, nil)
 
 	// Create a one-second ticker for reporting:
-	oneSecond := time.Tick(time.Second)
+	refreshTimer := time.Tick(s.options.RefreshRate)
 
 	fmt.Print("Started server\n")
 	fmt.Printf("%15d  ID: %s\n", s.tb.size, hex.EncodeToString(s.hashId))
@@ -105,7 +116,7 @@ func (s *Server) Run() error {
 			} else if err != nil {
 				fmt.Printf("%+v\n", err)
 			}
-		case <-oneSecond:
+		case <-refreshTimer:
 			s.reportBandwidth()
 		}
 	}

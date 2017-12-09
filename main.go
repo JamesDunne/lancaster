@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli"
 )
@@ -20,7 +21,10 @@ func main() {
 	address := ""
 	ttl := 0
 	loopbackEnable := false
+	hashIdStr := ""
+	hashId := []byte(nil)
 	options := VirtualTarballOptions{}
+	refreshRate := time.Duration(0)
 
 	createMulticast := func() (*Multicast, error) {
 		m, err := NewMulticast(address, netInterface)
@@ -68,6 +72,18 @@ func main() {
 			Usage:       "Enable loopback support for testing",
 			Destination: &loopbackEnable,
 		},
+		cli.DurationFlag{
+			Name:        "refresh-rate,f",
+			Value:       250 * time.Millisecond,
+			Usage:       "refresh rate of meter UI",
+			Destination: &refreshRate,
+		},
+		cli.StringFlag{
+			Name:        "id",
+			Usage:       "specific hash ID of transfer to download",
+			Value:       "",
+			Destination: &hashIdStr,
+		},
 	}
 	if runtime.GOOS == "windows" {
 		// Windows needs compatibility mode always enabled:
@@ -90,6 +106,18 @@ func main() {
 				return err
 			}
 		}
+		// Decode hash ID string flag:
+		if hashIdStr != "" {
+			err := error(nil)
+			hashId, err = hex.DecodeString(hashIdStr)
+			if err != nil {
+				return err
+			}
+			if len(hashId) != hashSize {
+				return errors.New(fmt.Sprintf("id must be %d characters", hashSize*2))
+			}
+		}
+
 		return nil
 	}
 	app.HideHelp = true
@@ -106,18 +134,12 @@ func main() {
 					return err
 				}
 
-				hashId := []byte(nil)
-				if c.Args().Present() {
-					hashId, err = hex.DecodeString(c.Args().First())
-					if err != nil {
-						return err
-					}
-					if len(hashId) != hashSize {
-						return errors.New(fmt.Sprintf("id must be %d characters", hashSize*2))
-					}
+				clientOptions := ClientOptions{
+					HashId:         hashId,
+					TarballOptions: options,
+					RefreshRate:    refreshRate,
 				}
-
-				cl := NewClient(m, hashId, options)
+				cl := NewClient(m, clientOptions)
 				return cl.Run()
 			},
 		},
@@ -146,7 +168,7 @@ Folders are added without recursion unless appended with a ':::'`,
 				}
 
 				// Create server and run loop:
-				s := NewServer(m, tb)
+				s := NewServer(m, tb, ServerOptions{RefreshRate: refreshRate})
 				return s.Run()
 			},
 		},

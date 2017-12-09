@@ -27,7 +27,7 @@ type Client struct {
 	m  *Multicast
 	tb *VirtualTarballWriter
 
-	options VirtualTarballOptions
+	options ClientOptions
 
 	state       ClientState
 	resendTimer <-chan time.Time
@@ -48,12 +48,23 @@ type Client struct {
 	endTime   time.Time
 }
 
-func NewClient(m *Multicast, hashId []byte, options VirtualTarballOptions) *Client {
+type ClientOptions struct {
+	TarballOptions VirtualTarballOptions
+	HashId         []byte
+	StorePath      string
+	RefreshRate    time.Duration
+}
+
+func NewClient(m *Multicast, options ClientOptions) *Client {
+	if options.RefreshRate <= time.Duration(0) {
+		options.RefreshRate = time.Second
+	}
+
 	return &Client{
 		m:       m,
 		options: options,
 		state:   ExpectAnnouncement,
-		hashId:  hashId,
+		hashId:  options.HashId,
 	}
 }
 
@@ -73,7 +84,7 @@ func (c *Client) Run() error {
 	c.state = ExpectAnnouncement
 
 	// Start ticking every second to measure bandwidth:
-	oneSecond := time.Tick(time.Second)
+	refreshTimer := time.Tick(c.options.RefreshRate)
 	c.lastTime = time.Now()
 	c.startTime = c.lastTime
 	c.lastBytesReceived = 0
@@ -114,7 +125,7 @@ loop:
 				break loop
 			}
 
-		case <-oneSecond:
+		case <-refreshTimer:
 			// Measure and report receive-bandwidth:
 			c.reportBandwidth()
 
@@ -354,7 +365,7 @@ func (c *Client) decodeMetadata() error {
 	}
 
 	// Create a writer:
-	c.tb, err = NewVirtualTarballWriter(files, c.options)
+	c.tb, err = NewVirtualTarballWriter(files, c.options.TarballOptions)
 	if err != nil {
 		return err
 	}
