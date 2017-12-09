@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -29,7 +28,6 @@ type Server struct {
 	packetsSentSinceLastAck int
 	allowSend               chan empty
 
-	nextLock    sync.Mutex
 	nakRegions  *NakRegions
 	nextRegion  int64
 	regionSize  uint16
@@ -148,8 +146,6 @@ func (s *Server) sendDataLoop() {
 
 func (s *Server) sendData() error {
 	err := error(nil)
-	s.nextLock.Lock()
-	defer s.nextLock.Unlock()
 
 	// Read data from virtual tarball:
 	n := 0
@@ -296,7 +292,6 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
 		// Read ACK and record it:
-		s.nextLock.Lock()
 		ack := Region{
 			start: int64(byteOrder.Uint64(data[0:8])),
 			endEx: int64(byteOrder.Uint64(data[8:16])),
@@ -310,14 +305,14 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		}
 		// Start sending back at last ACK:
 		//s.nextRegion = ack.endEx
-		// Allow sending data with a non-blocking channel send:
 		s.lastClientDataRequest = time.Now()
 		s.packetsSentSinceLastAck--
+
+		// Allow sending data with a non-blocking channel send:
 		select {
 		case s.allowSend <- empty{}:
 		default:
 		}
-		s.nextLock.Unlock()
 		return nil
 	}
 
