@@ -36,7 +36,7 @@ func main() {
 	app.Name = "lancaster"
 	app.Usage = "a multicast file transfer tool"
 	app.Description = "Lancaster is a UDP multicast file transfer tool designed to efficiently utilize network resources in the transmission of large payloads of multiple files and folders to one or more clients."
-	app.Version = "v0.1.0"
+	app.Version = "v0.2.0"
 	app.Authors = []cli.Author{
 		{Name: "James Dunne", Email: "james.jdunne@gmail.com"},
 	}
@@ -49,8 +49,9 @@ func main() {
 			Destination: &netInterfaceName,
 		},
 		cli.StringFlag{
-			Name:        "group,g",
-			Value:       "236.0.0.100:1360",
+			Name: "group,g",
+			// Use IPv4 address 224.0.0.0 to 224.0.0.255 range for LOCAL multicast.
+			Value:       "224.0.0.252:1360",
 			Usage:       "UDP multicast group for transfers",
 			Destination: &address,
 		},
