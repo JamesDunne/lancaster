@@ -124,7 +124,7 @@ func (s *Server) sendDataLoop() {
 		<-s.allowSend
 		err := s.sendData()
 		if err != nil {
-			fmt.Printf("%s\n", err)
+			fmt.Printf("%+v\n", err)
 		}
 	}
 }
