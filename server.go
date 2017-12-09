@@ -91,12 +91,19 @@ func (s *Server) Run() error {
 				return ctrl.Error
 			}
 			// Process client requests:
-			s.processControl(ctrl)
+			err := s.processControl(ctrl)
+			if isENOBUFS(err) {
+				time.Sleep(10 * time.Millisecond)
+			} else if err != nil {
+				fmt.Printf("%+v\n", err)
+			}
 		case <-s.announceTicker:
 			// Announce transfer available:
 			_, err := s.m.SendControlToClient(s.announceMsg)
-			if err != nil {
-				return err
+			if isENOBUFS(err) {
+				time.Sleep(10 * time.Millisecond)
+			} else if err != nil {
+				fmt.Printf("%+v\n", err)
 			}
 		case <-oneSecond:
 			s.reportBandwidth()
@@ -123,8 +130,10 @@ func (s *Server) sendDataLoop() {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
 		err := s.sendData()
-		if err != nil {
-			fmt.Printf("%+v\n", err)
+		if isENOBUFS(err) {
+			time.Sleep(10 * time.Millisecond)
+		} else if err != nil {
+			fmt.Printf("%s\n", err)
 		}
 	}
 }
@@ -152,9 +161,6 @@ func (s *Server) sendData() error {
 	if err != nil {
 		return err
 	}
-	if m < len(dataMsg) {
-		fmt.Printf("m<n: %v < %v\n", m, len(dataMsg))
-	}
 
 	s.bytesSent += int64(m)
 
@@ -172,12 +178,12 @@ func (s *Server) sendData() error {
 	s.nextRegion = nextNak
 
 	// Keep sending new packets while clients are connected:
-	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
-		select {
-		case s.allowSend <- empty{}:
-		default:
-		}
-	}
+	//	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
+	//		select {
+	//		case s.allowSend <- empty{}:
+	//		default:
+	//		}
+	//	}
 
 	return nil
 }
@@ -266,7 +272,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_ = data
 
 		// Respond with metadata header:
-		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataHeader, s.metadataHeader))
+		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataHeader, s.metadataHeader))
 	case RequestMetadataSection:
 		sectionIndex := byteOrder.Uint16(data[0:2])
 		if sectionIndex >= uint16(len(s.metadataSections)) {
@@ -276,7 +282,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 
 		// Send metadata section message:
 		section := s.metadataSections[sectionIndex]
-		s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
+		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
 		// Read ACK and record it:
 		ack := Region{
@@ -299,5 +305,5 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		return nil
 	}
 
-	return nil
+	return err
 }

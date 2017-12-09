@@ -22,3 +22,14 @@ func setSocketOptionInt(conn *net.UDPConn, level, option, value int) error {
 	}
 	return serr
 }
+
+func isENOBUFS(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if op, ok := err.(*net.OpError); ok {
+		err = op.Err
+	}
+	return err == syscall.ENOBUFS
+}
