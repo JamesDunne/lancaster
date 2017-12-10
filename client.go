@@ -183,11 +183,13 @@ func (c *Client) processControl(msg UDPMessage) error {
 	case ExpectAnnouncement:
 		switch op {
 		case AnnounceTarball:
+			fmt.Printf("announce %s\n", hex.EncodeToString(hashId))
 			if c.hashId == nil {
 				// If client has not specified a hashId to listen for, accept the first one that's announced:
 				c.hashId = hashId
 			} else if compareHashes(c.hashId, hashId) != 0 {
 				// These are not the droids we're looking for.
+				fmt.Printf("Ignore announcement for %s; only interested in %s\n", hex.EncodeToString(hashId), hex.EncodeToString(c.hashId))
 				return nil
 			}
 
@@ -202,12 +204,14 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 	case ExpectMetadataHeader:
 		if compareHashes(c.hashId, hashId) != 0 {
-			// Ignore message not for us:
+			// These are not the droids we're looking for.
+			fmt.Printf("Ignore announcement for %s; only interested in %s\n", hex.EncodeToString(hashId), hex.EncodeToString(c.hashId))
 			return nil
 		}
 
 		switch op {
 		case RespondMetadataHeader:
+			fmt.Printf("metaheader %s\n", hex.EncodeToString(hashId))
 			// Read count of sections:
 			c.metadataSectionCount = byteOrder.Uint16(data[0:2])
 			c.metadataSections = make([][]byte, c.metadataSectionCount)
@@ -224,12 +228,15 @@ func (c *Client) processControl(msg UDPMessage) error {
 
 	case ExpectMetadataSections:
 		if compareHashes(c.hashId, hashId) != 0 {
-			// Ignore message not for us:
+			// These are not the droids we're looking for.
+			fmt.Printf("Ignore announcement for %s; only interested in %s\n", hex.EncodeToString(hashId), hex.EncodeToString(c.hashId))
 			return nil
 		}
 
 		switch op {
 		case RespondMetadataSection:
+			fmt.Printf("metasection %s\n", hex.EncodeToString(hashId))
+
 			sectionIndex := byteOrder.Uint16(data[0:2])
 			if sectionIndex == c.nextSectionIndex {
 				c.metadataSections[sectionIndex] = make([]byte, len(data[2:]))
@@ -286,7 +293,7 @@ func (c *Client) ask() error {
 		}
 	case ExpectDataSections:
 		// Send the last ACKed region to get a new region:
-		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
+		fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		max := c.m.MaxMessageSize() - (2*8 + protocolControlPrefixSize)
 		bytes := make([]byte, max)
 		byteOrder.PutUint64(bytes[0:], uint64(c.lastAck.start))

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 )
@@ -240,6 +241,7 @@ func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) error {
 		buf := make([]byte, m.MaxMessageSize())
 		n, recvAddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
+			fmt.Printf("%v\n", err)
 			ch <- UDPMessage{Error: err}
 			return err
 		}
