@@ -287,10 +287,36 @@ func (c *Client) ask() error {
 	case ExpectDataSections:
 		// Send the last ACKed region to get a new region:
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
-		buf := bytes.NewBuffer(make([]byte, 0, 8*2))
-		binary.Write(buf, byteOrder, c.lastAck.start)
-		binary.Write(buf, byteOrder, c.lastAck.endEx)
-		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, buf.Bytes()))
+		max := c.m.MaxMessageSize() - (2*8 + protocolControlPrefixSize)
+		bytes := make([]byte, max)
+		byteOrder.PutUint64(bytes[0:], uint64(c.lastAck.start))
+		byteOrder.PutUint64(bytes[8:], uint64(c.lastAck.start))
+		// Send as many NAKed regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
+		i := 16
+		for _, nak := range c.nakRegions.Naks() {
+			if i >= max-2*binary.MaxVarintLen64 {
+				break
+			}
+			// Skip NAKed regions until last ACKed region:
+			if nak.endEx < c.lastAck.endEx {
+				continue
+			}
+			i += binary.PutUvarint(bytes[i:], uint64(nak.start))
+			i += binary.PutUvarint(bytes[i:], uint64(nak.endEx))
+		}
+		// Loop back around and add any NAKs before last ACK:
+		for _, nak := range c.nakRegions.Naks() {
+			if i >= max-2*binary.MaxVarintLen64 {
+				break
+			}
+			// Skip NAKed regions after last ACKed region:
+			if nak.endEx >= c.lastAck.endEx {
+				break
+			}
+			i += binary.PutUvarint(bytes[i:], uint64(nak.start))
+			i += binary.PutUvarint(bytes[i:], uint64(nak.endEx))
+		}
+		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, bytes))
 		if err != nil {
 			return err
 		}
