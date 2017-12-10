@@ -118,7 +118,7 @@ func (s *Server) Run() error {
 			}
 		case <-s.announceTicker:
 			// Announce transfer available:
-			fmt.Printf("announce %s\n", hex.EncodeToString(s.hashId))
+			//fmt.Printf("announce %s\n", hex.EncodeToString(s.hashId))
 
 			_, err := s.m.SendControlToClient(s.announceMsg)
 			if err != nil {
@@ -285,7 +285,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 
 	if compareHashes(hashId, s.hashId) != 0 {
 		// Ignore message not for us:
-		fmt.Printf("ignore message for %s; expecting for %s\n", hex.EncodeToString(hashId), hex.EncodeToString(s.hashId))
+		//fmt.Printf("ignore message for %s; expecting for %s\n", hex.EncodeToString(hashId), hex.EncodeToString(s.hashId))
 		return nil
 	}
 
