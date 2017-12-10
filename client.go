@@ -316,7 +316,7 @@ func (c *Client) ask() error {
 			i += binary.PutUvarint(bytes[i:], uint64(nak.start))
 			i += binary.PutUvarint(bytes[i:], uint64(nak.endEx))
 		}
-		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, bytes))
+		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, bytes[:i]))
 		if err != nil {
 			return err
 		}
