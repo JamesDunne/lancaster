@@ -74,7 +74,7 @@ func NewMulticast(address string, netInterface *net.Interface) (*Multicast, erro
 	c := &Multicast{
 		netInterface:        netInterface,
 		datagramSize:        65000,
-		bufferPacketCount:   10000,
+		bufferPacketCount:   32,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,
@@ -90,7 +90,10 @@ func (m *Multicast) ListensControlToServer() error {
 		return err
 	}
 	m.controlToServerConn = controlToServerConn
-	m.setConnectionProperties(m.controlToServerConn)
+	err = m.setConnectionProperties(m.controlToServerConn)
+	if err != nil {
+		return err
+	}
 	m.ControlToServer = make(chan UDPMessage)
 	go m.receiveLoop(m.controlToServerConn, m.ControlToServer)
 	return nil
@@ -102,7 +105,10 @@ func (m *Multicast) ListensControlToClient() error {
 		return err
 	}
 	m.controlToClientConn = controlToClientConn
-	m.setConnectionProperties(m.controlToClientConn)
+	err = m.setConnectionProperties(m.controlToClientConn)
+	if err != nil {
+		return err
+	}
 	m.ControlToClient = make(chan UDPMessage)
 	go m.receiveLoop(m.controlToClientConn, m.ControlToClient)
 	return nil
@@ -115,7 +121,10 @@ func (m *Multicast) ListensData() error {
 	}
 
 	m.dataConn = dataConn
-	m.setConnectionProperties(m.dataConn)
+	err = m.setConnectionProperties(m.dataConn)
+	if err != nil {
+		return err
+	}
 	m.Data = make(chan UDPMessage)
 	go m.receiveLoop(m.dataConn, m.Data)
 	return nil
@@ -127,7 +136,11 @@ func (m *Multicast) SendsControlToServer() error {
 		return err
 	}
 	m.controlToServerConn = controlToServerConn
-	m.setConnectionProperties(m.controlToServerConn)
+	err = m.setConnectionProperties(m.controlToServerConn)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -137,7 +150,11 @@ func (m *Multicast) SendsControlToClient() error {
 		return err
 	}
 	m.controlToClientConn = controlToClientConn
-	m.setConnectionProperties(m.controlToClientConn)
+	err = m.setConnectionProperties(m.controlToClientConn)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -148,7 +165,11 @@ func (m *Multicast) SendsData() error {
 	}
 
 	m.dataConn = dataConn
-	m.setConnectionProperties(m.dataConn)
+	err = m.setConnectionProperties(m.dataConn)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

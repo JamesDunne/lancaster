@@ -77,9 +77,18 @@ func (s *Server) Run() error {
 	s.nakRegions = NewNakRegions(s.tb.size)
 
 	// Let Multicast know what channels we're interested in sending/receiving:
-	s.m.SendsControlToClient()
-	s.m.SendsData()
-	s.m.ListensControlToServer()
+	err = s.m.SendsControlToClient()
+	if err != nil {
+		return err
+	}
+	err = s.m.SendsData()
+	if err != nil {
+		return err
+	}
+	err = s.m.ListensControlToServer()
+	if err != nil {
+		return err
+	}
 
 	// Tick to send a server announcement:
 	s.announceTicker = time.Tick(1 * time.Second)

@@ -69,9 +69,20 @@ func NewClient(m *Multicast, options ClientOptions) *Client {
 }
 
 func (c *Client) Run() error {
-	c.m.SendsControlToServer()
-	c.m.ListensControlToClient()
-	c.m.ListensData()
+	err := error(nil)
+
+	err = c.m.SendsControlToServer()
+	if err != nil {
+		return err
+	}
+	err = c.m.ListensControlToClient()
+	if err != nil {
+		return err
+	}
+	err = c.m.ListensData()
+	if err != nil {
+		return err
+	}
 
 	logError := func(err error) {
 		if err == nil {
@@ -92,8 +103,6 @@ func (c *Client) Run() error {
 	// Main message loop:
 loop:
 	for {
-		err := error(nil)
-
 		select {
 		case msg := <-c.m.ControlToClient:
 			if msg.Error != nil {
