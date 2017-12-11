@@ -79,15 +79,16 @@ func (r *NakRegions) NextNakRegion(start int64) int64 {
 		return -1
 	}
 
-	for _, k := range r.naks {
+	a := r.naks[:]
+	for _, k := range a {
 		if start >= k.start && start < k.endEx {
 			return start
 		}
 	}
 
 	// Try the first nak region if nothing available after `start`:
-	if len(r.naks) > 0 {
-		return r.naks[0].start
+	if len(a) > 0 {
+		return a[0].start
 	}
 
 	return -1
@@ -206,21 +207,41 @@ func (r *NakRegions) Nak(start, endEx int64) error {
 	return nil
 }
 
-func (r *NakRegions) ASCIIMeter(nakMeterLen int) string {
-	charSize := float64(r.size) / float64(nakMeterLen)
-	nakMeter := make([]byte, nakMeterLen)
-	for i := 0; i < nakMeterLen; i++ {
+func (r *NakRegions) asciiMeter(charSize float64, nakMeter []byte) {
+	for i := 0; i < len(nakMeter); i++ {
 		nakMeter[i] = '#'
 	}
 	for _, k := range r.naks {
 		i := int(math.Floor(float64(k.start) / charSize))
 		j := int(math.Floor(float64(k.endEx) / charSize))
 
-		for ; i < j && i < nakMeterLen; i++ {
+		for ; i < j && i < len(nakMeter); i++ {
 			nakMeter[i] = '.'
 		}
 	}
+}
+
+func (r *NakRegions) ASCIIMeter(nakMeterLen int) string {
+	charSize := float64(r.size) / float64(nakMeterLen)
+	nakMeter := make([]byte, nakMeterLen)
+	r.asciiMeter(charSize, nakMeter)
 	return string(nakMeter)
+}
+
+func (r *NakRegions) ASCIIMeterPosition(nakMeterLen int, pos int64) string {
+	charSize := float64(r.size) / float64(nakMeterLen)
+	nakMeter := make([]byte, nakMeterLen)
+	r.asciiMeter(charSize, nakMeter)
+
+	i := int(math.Floor(float64(pos) / charSize))
+	j := int(math.Floor(float64(pos+1) / charSize))
+
+	for ; i <= j && i < nakMeterLen; i++ {
+		nakMeter[i] = '|'
+	}
+
+	return string(nakMeter)
+
 }
 
 func controlToClientMessage(hashId []byte, op ControlToClientOp, data []byte) []byte {
