@@ -139,7 +139,7 @@ func (s *Server) reportBandwidth() {
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
 
-	fmt.Printf("%15s/s        [%s]\r", humanize.IBytes(uint64(float64(byteCount)/sec)), s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
+	fmt.Printf("\b%15s/s        [%s]\r", humanize.IBytes(uint64(float64(byteCount)/sec)), s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow
