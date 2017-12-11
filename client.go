@@ -301,10 +301,10 @@ func (c *Client) ask() error {
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		max := c.m.MaxMessageSize() - (protocolControlPrefixSize)
 		bytes := make([]byte, max)
-		// Send as many ACKed regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
+		// Send as many NAK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
 		i := 0
-		acks := c.nakRegions.Acks()
-		for _, k := range acks {
+		naks := c.nakRegions.Naks()
+		for _, k := range naks {
 			if i >= max-2*binary.MaxVarintLen64 {
 				break
 			}
@@ -316,7 +316,7 @@ func (c *Client) ask() error {
 			i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
 		}
 		// Loop back around and add any ACKs before last ACK:
-		for _, k := range acks {
+		for _, k := range naks {
 			if i >= max-2*binary.MaxVarintLen64 {
 				break
 			}

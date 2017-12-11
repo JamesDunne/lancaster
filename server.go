@@ -196,6 +196,8 @@ func (s *Server) sendData() error {
 		fmt.Printf("m < buf: %d < %d\n", m, len(buf))
 	}
 
+	// ACK sent region internally:
+	s.nakRegions.Ack(s.nextRegion, s.nextRegion+int64(n))
 	s.bytesSent += int64(m)
 
 	// Advance to next region:
@@ -311,7 +313,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		section := s.metadataSections[sectionIndex]
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
-		// Record known ACKs:
+		// Record known NAKs:
 		if len(data) == 0 {
 			// New client means NAK everything:
 			fmt.Print("\bnak all\n")
@@ -323,8 +325,8 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			i += n
 			endEx, n := binary.Uvarint(data[i:])
 			i += n
-			//fmt.Printf("\back [%15v %15v]\n", start, endEx)
-			s.nakRegions.Ack(int64(start), int64(endEx))
+			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
+			s.nakRegions.Nak(int64(start), int64(endEx))
 		}
 
 		// Allow sending data with a non-blocking channel send:
