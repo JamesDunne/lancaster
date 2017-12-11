@@ -150,7 +150,8 @@ loop:
 
 	// Elapsed time:
 	c.endTime = time.Now()
-	fmt.Printf("%v elapsed\n", c.endTime.Sub(c.startTime))
+	diff := c.endTime.Sub(c.startTime)
+	fmt.Printf("%v elapsed %15.0f B/s avg\n", diff, float64(c.bytesReceived)/diff.Seconds())
 
 	// Close virtual tarball writer:
 	if c.tb != nil {
