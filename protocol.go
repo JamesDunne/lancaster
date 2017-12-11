@@ -16,7 +16,7 @@ const protocolDataMsgPrefixSize = 1 + hashSize + 8
 const metadataSectionMsgSize = 2
 const metadataHeaderMsgSize = 2
 
-const bufferFullTimeoutMilli = 5
+const bufferFullTimeoutMilli = 1
 
 var (
 	ErrMessageTooShort      = errors.New("message too short")
@@ -217,8 +217,12 @@ func (r *NakRegions) asciiMeter(charSize float64, nakMeter []byte) {
 		i := int(math.Floor(float64(k.start) / charSize))
 		j := int(math.Floor(float64(k.endEx) / charSize))
 
-		for ; i < j && i < len(nakMeter); i++ {
-			nakMeter[i] = '.'
+		if i == j {
+			nakMeter[i] = ':'
+		} else {
+			for ; i < j && i < len(nakMeter); i++ {
+				nakMeter[i] = '.'
+			}
 		}
 	}
 }
