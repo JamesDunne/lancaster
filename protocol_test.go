@@ -115,3 +115,46 @@ func TestNakRegions_Ack9(t *testing.T) {
 	r.Ack(0, 5)
 	cmp(t, r.Naks(), []Region{{start: 5, endEx: 10}, {start: 19, endEx: 20}})
 }
+
+// [(5, 10)].nak(0,  10) => [(0, 10)]
+func TestNakRegions_Nak1(t *testing.T) {
+	r := NewNakRegions(10)
+	r.Ack(0, 5)
+	r.Nak(0, 10)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 10}})
+}
+
+// [(5, 20)].nak(0,  15) => [(0, 15)]
+func TestNakRegions_Nak2(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 5)
+	r.Nak(0, 15)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 20}})
+}
+
+// [(5, 10), (15, 20)].nak(2,  12) => [(2, 12), (15, 20)]
+func TestNakRegions_Nak3(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 5)
+	r.Ack(10, 15)
+	r.Nak(2, 12)
+	cmp(t, r.Naks(), []Region{{start: 2, endEx: 12}, {start: 15, endEx: 20}})
+}
+
+// [(5, 10), (15, 20)].nak(0,  15) => [(0, 20)]
+func TestNakRegions_Nak4(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 5)
+	r.Ack(10, 15)
+	r.Nak(0, 15)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 20}})
+}
+
+// [(5, 10), (15, 20)].nak(0,  20) => [(0, 20)]
+func TestNakRegions_Nak5(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 5)
+	r.Ack(10, 15)
+	r.Nak(0, 20)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 20}})
+}

@@ -108,7 +108,7 @@ func (r *NakRegions) IsAcked(start int64, endEx int64) bool {
 // [(0, 10)].ack(0,  5) => [(5, 10)]
 // [(0, 10)].ack(5, 10) => [(0,  5)]
 // [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
-func (r *NakRegions) Ack(start int64, endEx int64) error {
+func (r *NakRegions) Ack(start, endEx int64) error {
 	if start < 0 {
 		return ErrAckOutOfRange
 	}
@@ -140,6 +140,66 @@ func (r *NakRegions) Ack(start int64, endEx int64) error {
 		} else {
 			o = append(o, k)
 		}
+	}
+
+	r.naks = o
+	return nil
+}
+
+func (r *NakRegions) Nak(start, endEx int64) error {
+	if start < 0 {
+		return ErrAckOutOfRange
+	}
+	if endEx > r.size {
+		return ErrAckOutOfRange
+	}
+
+	a := r.naks
+	// [].nak(0, 10) => [(0, 10)]
+	if len(a) == 0 {
+		r.naks = make([]Region, 1)
+		r.naks[0].start = start
+		r.naks[0].endEx = endEx
+		return nil
+	}
+
+	// [(5, 10)].nak(0,  10) => [(0, 10)]
+	// [(5, 10)].nak(0,  15) => [(0, 15)]
+	// [(5, 10), (15, 20)].nak(2,  12) => [(2, 12), (15, 20)]
+	// [(5, 10), (15, 20)].nak(0,  15) => [(0, 20)]
+
+	o := make([]Region, 0, len(a))
+	kWithStart := 0
+	kWithEnd := 0
+	for i := len(a) - 1; i >= 0; i-- {
+		k := &a[i]
+		if endEx >= k.start {
+			kWithEnd = i
+			break
+		}
+	}
+	for i := 0; i < len(a); i++ {
+		k := &a[i]
+		if start <= k.endEx {
+			kWithStart = i
+			break
+		}
+	}
+	// Emit unmodified NAK ranges before the requested NAK range:
+	for i := 0; i < kWithStart; i++ {
+		o = append(o, a[i])
+	}
+	// Emit requested NAK range (extended to fit with existing NAKs):
+	if a[kWithStart].start < start {
+		start = a[kWithStart].start
+	}
+	if a[kWithEnd].endEx > endEx {
+		endEx = a[kWithEnd].endEx
+	}
+	o = append(o, Region{start, endEx})
+	// Emit unmodified NAK ranges above requested NAK range:
+	for i := kWithEnd + 1; i < len(a); i++ {
+		o = append(o, a[i])
 	}
 
 	r.naks = o
