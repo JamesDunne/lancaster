@@ -42,6 +42,14 @@ func TestNakRegions_Ack1(t *testing.T) {
 	cmp(t, r.Acks(), []Region{{start: 0, endEx: 10}})
 }
 
+func TestNakRegions_Ack2(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 1)
+	cmp(t, r.Acks(), []Region{{start: 0, endEx: 1}})
+	r.Ack(0, 2)
+	cmp(t, r.Acks(), []Region{{start: 0, endEx: 2}})
+}
+
 // [(0, 10)].ack(0,  5) => [(5, 10)]
 func TestNakRegions_Ack3(t *testing.T) {
 	r := NewNakRegions(10)

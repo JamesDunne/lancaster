@@ -309,7 +309,7 @@ func (c *Client) ask() error {
 				break
 			}
 			// Skip ACKed regions until last ACKed region:
-			if k.endEx < c.lastAck.endEx {
+			if k.endEx < c.lastAck.start {
 				continue
 			}
 			i += binary.PutUvarint(bytes[i:], uint64(k.start))
@@ -321,7 +321,7 @@ func (c *Client) ask() error {
 				break
 			}
 			// Skip NAKed regions after last ACKed region:
-			if k.endEx >= c.lastAck.endEx {
+			if k.endEx >= c.lastAck.start {
 				break
 			}
 			i += binary.PutUvarint(bytes[i:], uint64(k.start))

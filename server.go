@@ -312,16 +312,18 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
 		// Record known ACKs:
-		i := 0
 		if len(data) == 0 {
 			// New client means NAK everything:
+			fmt.Print("\bnak all\n")
 			s.nakRegions.NakAll()
 		}
+		i := 0
 		for i < len(data) {
 			start, n := binary.Uvarint(data[i:])
 			i += n
 			endEx, n := binary.Uvarint(data[i:])
 			i += n
+			//fmt.Printf("\back [%15v %15v]\n", start, endEx)
 			s.nakRegions.Ack(int64(start), int64(endEx))
 		}
 

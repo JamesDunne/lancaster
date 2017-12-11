@@ -143,24 +143,53 @@ func (r *NakRegions) Ack(start, endEx int64) error {
 		return nil
 	}
 
-	// ACK a range by creating a modified NAK ranges:
 	o := make([]Region, 0, len(a))
-	for _, k := range a {
-		if start == k.start && endEx == k.endEx {
-			// remove this range from output; i.e. dont add it.
-		} else if start > k.start && endEx < k.endEx {
-			// [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
-			o = append(o, Region{k.start, start})
-			o = append(o, Region{endEx, k.endEx})
-		} else if start > k.start && endEx == k.endEx {
-			// [(0, 10)].ack(5, 10) => [(0,  5)]
-			o = append(o, Region{k.start, start})
-		} else if start == k.start && endEx < k.endEx {
-			// [(0, 10)].ack(0,  5) => [(5, 10)]
-			o = append(o, Region{endEx, k.endEx})
-		} else {
-			o = append(o, k)
+	kWithStart := 0
+	kWithEnd := len(a) - 1
+	for i := len(a) - 1; i >= 0; i-- {
+		k := &a[i]
+		if start >= k.start {
+			kWithStart = i
+			break
 		}
+	}
+	for i := 0; i < len(a); i++ {
+		k := &a[i]
+		if endEx <= k.endEx {
+			kWithEnd = i
+			break
+		}
+	}
+
+	// Condense range:
+	if start < a[kWithStart].start {
+		start = a[kWithStart].start
+	}
+	if endEx > a[kWithEnd].endEx {
+		endEx = a[kWithEnd].endEx
+	}
+
+	// Emit unmodified NAK ranges before the requested ACK range:
+	for i := 0; i < kWithStart; i++ {
+		o = append(o, a[i])
+	}
+
+	//fmt.Printf("(%v %v) vs. (%v %v)\n", a[kWithStart].start, a[kWithEnd].endEx, start, endEx)
+	if a[kWithStart].start == start && a[kWithEnd].endEx == endEx {
+		// [(0 1) (2 20)].ack(0, 1) -> [(2 20)]
+	} else if start > a[kWithStart].start && endEx < a[kWithEnd].endEx {
+		// [(0 1) (2 5) (6 20)].ack(3, 4) -> [(0 1) (2 3) (4 5) (6 20)]
+		o = append(o, Region{a[kWithStart].start, start})
+		o = append(o, Region{endEx, a[kWithEnd].endEx})
+	} else if start > a[kWithStart].start && endEx == a[kWithEnd].endEx {
+		o = append(o, Region{a[kWithStart].start, start})
+	} else if start == a[kWithStart].start && endEx < a[kWithEnd].endEx {
+		// [(0 1) (2 5) (6 20)].ack(0, 4) -> [(4 5) (6 20)]
+		o = append(o, Region{endEx, a[kWithEnd].endEx})
+	}
+	// Emit unmodified NAK ranges above requested NAK range:
+	for i := kWithEnd + 1; i < len(a); i++ {
+		o = append(o, a[i])
 	}
 
 	r.naks = o
