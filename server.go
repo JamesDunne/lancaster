@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 )
 import "github.com/dustin/go-humanize"
@@ -29,6 +30,7 @@ type Server struct {
 	packetsSentSinceLastAck int
 	allowSend               chan empty
 
+	nextLock    sync.Mutex
 	nakRegions  *NakRegions
 	nextRegion  int64
 	regionSize  uint16
@@ -172,6 +174,10 @@ func (s *Server) sendDataLoop() {
 func (s *Server) sendData() error {
 	err := error(nil)
 
+	// Lock access so NAKs are consistent:
+	s.nextLock.Lock()
+	defer s.nextLock.Unlock()
+
 	// Read data from virtual tarball:
 	n := 0
 	buf := make([]byte, s.regionSize)
@@ -314,6 +320,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
 		// Record known NAKs:
+		s.nextLock.Lock()
 		if len(data) == 0 {
 			// New client means NAK everything:
 			fmt.Print("\bnak all\n")
@@ -328,6 +335,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
 			s.nakRegions.Nak(int64(start), int64(endEx))
 		}
+		s.nextLock.Unlock()
 
 		// Allow sending data with a non-blocking channel send:
 		s.lastClientDataRequest = time.Now()
