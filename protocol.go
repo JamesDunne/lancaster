@@ -64,11 +64,29 @@ func (r *NakRegions) Naks() []Region {
 	return r.naks
 }
 
+func (r *NakRegions) Acks() []Region {
+	a := r.naks[:]
+	o := make([]Region, 0, len(a))
+	// [(0 2) (4 5) (10 19)] -> [(2, 4), (5, 10), (19, 20)]
+	// [(0 20)] -> []
+	m := int64(0)
+	for _, k := range a {
+		if k.start > m {
+			o = append(o, Region{m, k.start})
+		}
+		m = k.endEx
+	}
+	if m < r.size {
+		o = append(o, Region{m, r.size})
+	}
+	return o
+}
+
 func (r *NakRegions) Len() int {
 	return len(r.naks)
 }
 
-func (r *NakRegions) Clear() {
+func (r *NakRegions) NakAll() {
 	r.naks = []Region{{start: 0, endEx: r.size}}
 }
 

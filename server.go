@@ -311,27 +311,18 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		section := s.metadataSections[sectionIndex]
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
-		// Read ACK and record it:
-		ack := Region{
-			start: int64(byteOrder.Uint64(data[0:8])),
-			endEx: int64(byteOrder.Uint64(data[8:16])),
+		// Record known ACKs:
+		i := 0
+		if len(data) == 0 {
+			// New client means NAK everything:
+			s.nakRegions.NakAll()
 		}
-		if ack.start == 0 && ack.endEx == 0 {
-			// New client means clear all ACKs:
-			s.nakRegions.Clear()
-		} else {
-			// ACK region:
-			s.nakRegions.Ack(ack.start, ack.endEx)
-		}
-
-		// Record known NAKs:
-		i := 16
 		for i < len(data) {
-			v1, n := binary.Uvarint(data[i:])
+			start, n := binary.Uvarint(data[i:])
 			i += n
-			v2, n := binary.Uvarint(data[i:])
+			endEx, n := binary.Uvarint(data[i:])
 			i += n
-			s.nakRegions.Nak(int64(v1), int64(v2))
+			s.nakRegions.Ack(int64(start), int64(endEx))
 		}
 
 		// Allow sending data with a non-blocking channel send:
