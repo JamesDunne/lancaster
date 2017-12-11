@@ -291,17 +291,11 @@ func (c *Client) ask() error {
 	switch c.state {
 	case ExpectMetadataHeader:
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataHeader, nil))
-		if err != nil {
-			return err
-		}
 	case ExpectMetadataSections:
 		// Request next metadata section:
 		req := make([]byte, 2)
 		byteOrder.PutUint16(req[0:2], uint16(c.nextSectionIndex))
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataSection, req))
-		if err != nil {
-			return err
-		}
 	case ExpectDataSections:
 		// Send the last ACKed region to get a new region:
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
@@ -336,12 +330,17 @@ func (c *Client) ask() error {
 		}
 		//fmt.Printf("%s", hex.Dump(bytes[:i]))
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, bytes[:i]))
-		if err != nil {
-			return err
-		}
 	case Done:
 	default:
 		return nil
+	}
+
+	if isENOBUFS(err) {
+		time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+		err = nil
+	}
+	if err != nil {
+		return err
 	}
 
 	// Start a timer for next ask in case this one got lost:

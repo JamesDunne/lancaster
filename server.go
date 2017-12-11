@@ -122,6 +122,11 @@ func (s *Server) Run() error {
 			//fmt.Printf("announce %s\n", hex.EncodeToString(s.hashId))
 
 			_, err := s.m.SendControlToClient(s.announceMsg)
+			if isENOBUFS(err) {
+				time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+				err = nil
+			}
+
 			if err != nil {
 				fmt.Printf("%s\n", err)
 			}
@@ -150,7 +155,14 @@ func (s *Server) sendDataLoop() {
 	for {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
+
+		// Send next data region:
 		err := s.sendData()
+		if isENOBUFS(err) {
+			time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+			err = nil
+		}
+
 		if err != nil {
 			fmt.Printf("%s\n", err)
 		}
@@ -198,14 +210,6 @@ func (s *Server) sendData() error {
 		return nil
 	}
 	s.nextRegion = nextNak
-
-	// Keep sending new packets while clients are connected:
-	//	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
-	//		select {
-	//		case s.allowSend <- empty{}:
-	//		default:
-	//		}
-	//	}
 
 	return nil
 }
@@ -337,6 +341,11 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		default:
 		}
 		return nil
+	}
+
+	if isENOBUFS(err) {
+		time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+		err = nil
 	}
 
 	return err
