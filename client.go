@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 )
+import "github.com/dustin/go-humanize"
 
 type ClientState int
 
@@ -151,7 +152,7 @@ loop:
 	// Elapsed time:
 	c.endTime = time.Now()
 	diff := c.endTime.Sub(c.startTime)
-	fmt.Printf("%v elapsed %15.0f B/s avg\n", diff, float64(c.bytesReceived)/diff.Seconds())
+	fmt.Printf("%v elapsed %15s/s avg\n", diff, humanize.IBytes(uint64(float64(c.bytesReceived)/diff.Seconds())))
 
 	// Close virtual tarball writer:
 	if c.tb != nil {
@@ -177,7 +178,7 @@ func (c *Client) reportBandwidth() {
 	if c.nakRegions != nil {
 		nakMeter = c.nakRegions.ASCIIMeter(48)
 	}
-	fmt.Printf("%15.0f B/s %6.2f%% [%s]\r", float64(byteCount)/sec, pct, nakMeter)
+	fmt.Printf("%s/s %6.2f%% [%s]\r", humanize.IBytes(uint64(float64(byteCount)/sec)), pct, nakMeter)
 
 	c.lastBytesReceived = c.bytesReceived
 	c.lastTime = rightMeow
@@ -420,10 +421,10 @@ func (c *Client) decodeMetadata() error {
 
 	fmt.Print("Receiving files:\n")
 	for _, f := range c.tb.files {
-		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
+		fmt.Printf("  %v %15s '%s'\n", f.Mode, humanize.Comma(f.Size), f.Path)
 	}
 
-	fmt.Printf("%15d  ID: %s\n", c.tb.size, hex.EncodeToString(c.hashId))
+	fmt.Printf("%15s  ID: %s\n", humanize.Comma(c.tb.size), hex.EncodeToString(c.hashId))
 
 	// Start elapsed timer:
 	c.startTime = time.Now()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 )
+import "github.com/dustin/go-humanize"
 
 type empty struct{}
 
@@ -100,7 +101,7 @@ func (s *Server) Run() error {
 	refreshTimer := time.Tick(s.options.RefreshRate)
 
 	fmt.Print("Started server\n")
-	fmt.Printf("%15d  ID: %s\n", s.tb.size, hex.EncodeToString(s.hashId))
+	fmt.Printf("%15s  ID: %s\n", humanize.Comma(s.tb.size), hex.EncodeToString(s.hashId))
 
 	// Send/recv loop:
 	go s.sendDataLoop()
@@ -138,7 +139,7 @@ func (s *Server) reportBandwidth() {
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
 
-	fmt.Printf("%15.0f B/s        [%s]\r", float64(byteCount)/sec, s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
+	fmt.Printf("%15s/s        [%s]\r", humanize.IBytes(uint64(float64(byteCount)/sec)), s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
 
 	s.bytesSentLast = s.bytesSent
 	s.timeLast = rightMeow
@@ -236,7 +237,7 @@ func (s *Server) buildMetadata() error {
 		writePrimitive(f.Size)
 		writePrimitive(f.Mode)
 		writeString(f.SymlinkDestination)
-		fmt.Printf("  %v %15d '%s'\n", f.Mode, f.Size, f.Path)
+		fmt.Printf("  %v %15s '%s'\n", f.Mode, humanize.Comma(f.Size), f.Path)
 	}
 	if err != nil {
 		return err
