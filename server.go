@@ -318,8 +318,17 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			// ACK region:
 			s.nakRegions.Ack(ack.start, ack.endEx)
 		}
+		i := 16
+		for i < len(data) {
+			v1, n := binary.Uvarint(data[i:])
+			i += n
+			v2, n := binary.Uvarint(data[i:])
+			i += n
+			fmt.Printf("[%v,%v]\n", v1, v2)
+			s.nakRegions.Nak(int64(v1), int64(v2))
+		}
 		// Start sending back at last ACK:
-		s.nextRegion = ack.endEx
+		//s.nextRegion = ack.endEx
 		s.lastClientDataRequest = time.Now()
 
 		// Allow sending data with a non-blocking channel send:
