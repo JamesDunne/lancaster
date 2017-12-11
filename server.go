@@ -199,12 +199,12 @@ func (s *Server) sendData() error {
 	s.nextRegion = nextNak
 
 	// Keep sending new packets while clients are connected:
-	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
-		select {
-		case s.allowSend <- empty{}:
-		default:
-		}
-	}
+	//	if time.Now().Sub(s.lastClientDataRequest) <= 20*time.Millisecond {
+	//		select {
+	//		case s.allowSend <- empty{}:
+	//		default:
+	//		}
+	//	}
 
 	return nil
 }
@@ -318,6 +318,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			// ACK region:
 			s.nakRegions.Ack(ack.start, ack.endEx)
 		}
+
 		// Record known NAKs:
 		i := 16
 		for i < len(data) {
@@ -327,11 +328,9 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			i += n
 			s.nakRegions.Nak(int64(v1), int64(v2))
 		}
-		// Start sending back at last ACK:
-		//s.nextRegion = ack.endEx
-		s.lastClientDataRequest = time.Now()
 
 		// Allow sending data with a non-blocking channel send:
+		s.lastClientDataRequest = time.Now()
 		select {
 		case s.allowSend <- empty{}:
 		default:
