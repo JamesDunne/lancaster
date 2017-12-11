@@ -215,13 +215,20 @@ func (r *NakRegions) asciiMeter(charSize float64, nakMeter []byte) {
 	}
 	for _, k := range r.naks {
 		i := int(math.Floor(float64(k.start) / charSize))
+		ir := int(math.Ceil(float64(k.start) / charSize))
 		j := int(math.Floor(float64(k.endEx) / charSize))
+		jr := int(math.Ceil(float64(k.endEx) / charSize))
 
-		if i == j {
-			nakMeter[i] = ':'
-		} else {
-			for ; i < j && i < len(nakMeter); i++ {
-				nakMeter[i] = '.'
+		for n := i; n < j && n < len(nakMeter); n++ {
+			nakMeter[n] = '.'
+		}
+
+		if charSize > 1.0 {
+			if i != ir {
+				nakMeter[i] = ':'
+			}
+			if j != jr {
+				nakMeter[j] = ':'
 			}
 		}
 	}
