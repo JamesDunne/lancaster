@@ -40,11 +40,11 @@ type Multicast struct {
 	Data            chan UDPMessage
 }
 
-func NewMulticast(address string, netInterface *net.Interface) (*Multicast, error) {
+func NewMulticast(controlToServerAddr *net.UDPAddr, netInterface *net.Interface) (*Multicast, error) {
 	// Control to-server address is port+0:
-	controlToServerAddr, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		return nil, err
+	if controlToServerAddr.Port == 0 {
+		// Set default port if not specified:
+		controlToServerAddr.Port = 1360
 	}
 
 	// Control to-client address is port+1:

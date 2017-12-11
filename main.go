@@ -18,16 +18,37 @@ import (
 func main() {
 	netInterfaceName := ""
 	netInterface := (*net.Interface)(nil)
-	address := ""
 	ttl := 0
 	loopbackEnable := false
 	hashIdStr := ""
 	hashId := []byte(nil)
 	options := VirtualTarballOptions{}
 	refreshRate := time.Duration(0)
+	linkLocal := false
+	host := ""
+	port := ""
 
 	createMulticast := func() (*Multicast, error) {
-		m, err := NewMulticast(address, netInterface)
+		// If no address specified use either link-local or well-known:
+		if host == "" {
+			if linkLocal {
+				// link-local address:
+				host = "239.0.0.100"
+			} else {
+				// "well-known" address:
+				host = "224.0.0.100"
+			}
+		}
+		if port == "" {
+			port = "1360"
+		}
+		// Resolve address:
+		address := net.JoinHostPort(host, port)
+		netAddr, err := net.ResolveUDPAddr("udp", address)
+		if err != nil {
+			return nil, err
+		}
+		m, err := NewMulticast(netAddr, netInterface)
 		if err != nil {
 			return nil, err
 		}
@@ -42,7 +63,7 @@ func main() {
 	app.Name = "lancaster"
 	app.Usage = "a multicast file transfer tool"
 	app.Description = "Lancaster is a UDP multicast file transfer tool designed to efficiently utilize network resources in the transmission of large payloads of multiple files and folders to one or more clients."
-	app.Version = "v0.2.0"
+	app.Version = "v0.3.0"
 	app.Authors = []cli.Author{
 		{Name: "James Dunne", Email: "james.jdunne@gmail.com"},
 	}
@@ -54,13 +75,6 @@ func main() {
 			Usage:       "Interface name to bind to",
 			Destination: &netInterfaceName,
 		},
-		cli.StringFlag{
-			Name: "group,g",
-			// Use IPv4 address 224.0.0.0 to 224.0.0.255 range for LOCAL multicast.
-			Value:       "224.0.0.252:1360",
-			Usage:       "UDP multicast group for transfers",
-			Destination: &address,
-		},
 		cli.IntFlag{
 			Name:        "ttl,t",
 			Value:       8,
@@ -68,9 +82,21 @@ func main() {
 			Destination: &ttl,
 		},
 		cli.BoolFlag{
-			Name:        "loopback,l",
+			Name:        "loopback,o",
 			Usage:       "Enable loopback support for testing",
 			Destination: &loopbackEnable,
+		},
+		cli.BoolFlag{
+			Name:        "link-local,k",
+			Usage:       "Use link-local group address 224.0.0.100 which cannot be routed to WAN, usually will only survive across switches",
+			Destination: &linkLocal,
+		},
+		cli.StringFlag{
+			Name: "group,g",
+			// Use IPv4 address 224.0.0.0 to 224.0.0.255 range for LOCAL multicast.
+			Value:       "",
+			Usage:       "Override default multicast address",
+			Destination: &host,
 		},
 		cli.DurationFlag{
 			Name:        "refresh-rate,f",
