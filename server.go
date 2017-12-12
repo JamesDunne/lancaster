@@ -79,7 +79,7 @@ func (s *Server) Run() error {
 
 	// Initialize with fully ACKed so that resuming clients send NAK state:
 	s.nakRegions = NewNakRegions(s.tb.size)
-	s.nakRegions.Ack(0, s.tb.size)
+	//s.nakRegions.Ack(0, s.tb.size)
 
 	// Let Multicast know what channels we're interested in sending/receiving:
 	err = s.m.SendsControlToClient()
@@ -217,7 +217,7 @@ func (s *Server) sendData() error {
 	}
 
 	// ACK sent region internally:
-	s.nakRegions.Ack(s.nextRegion, s.nextRegion+int64(n))
+	//s.nakRegions.Ack(s.nextRegion, s.nextRegion+int64(n))
 	s.bytesSent += int64(n)
 
 	// Advance to next region:
@@ -333,16 +333,20 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		i += n
 		endEx, n := binary.Uvarint(data[i:])
 		i += n
-		ack := Region{start: int64(start), endEx: int64(endEx)}
+		if i == len(data) {
+			// a client started? NAK all.
+			//s.nakRegions.Nak(0, s.nakRegions.size)
+		}
+		//ack := Region{start: int64(start), endEx: int64(endEx)}
 		//fmt.Printf("\n\back [%15v %15v]\n", ack.start, ack.endEx)
-		s.nakRegions.Ack(ack.start, ack.endEx)
+		//s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
 			start, n = binary.Uvarint(data[i:])
 			i += n
 			endEx, n = binary.Uvarint(data[i:])
 			i += n
 			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
-			s.nakRegions.Nak(int64(start), int64(endEx))
+			s.nakRegions.Ack(int64(start), int64(endEx))
 		}
 		s.nextLock.Unlock()
 
