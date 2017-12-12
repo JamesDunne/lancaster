@@ -303,31 +303,42 @@ func (c *Client) ask() error {
 		bytes := make([]byte, max)
 		// Send as many NAK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
 		i := 0
-		naks := c.nakRegions.Naks()
-		for _, k := range naks {
-			if i >= max-2*binary.MaxVarintLen64 {
-				break
+		if c.lastAck.start == 0 && c.lastAck.endEx == 0 {
+			// Empty packet means new client.
+		} else {
+			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
+			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
+			naks := c.nakRegions.Naks()
+			n := 0
+			for j := len(naks) - 1; j >= 0; j-- {
+				if i >= max-2*binary.MaxVarintLen64 {
+					break
+				}
+				// Send most recent NAK state in reverse order just behind last ACK region:
+				k := &naks[j]
+				if k.endEx > c.lastAck.endEx {
+					continue
+				}
+				i += binary.PutUvarint(bytes[i:], uint64(k.start))
+				i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
+				n++
 			}
-			// Skip ACKed regions until last ACKed region:
-			if k.endEx < c.lastAck.start {
-				continue
+			for _, k := range naks {
+				if i >= max-2*binary.MaxVarintLen64 {
+					break
+				}
+				// Send most recent NAK state starting after last ACK region:
+				if k.start < c.lastAck.start {
+					continue
+				}
+				i += binary.PutUvarint(bytes[i:], uint64(k.start))
+				i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
+				n++
 			}
-			i += binary.PutUvarint(bytes[i:], uint64(k.start))
-			i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
+			//if n < len(naks) {
+			//	fmt.Printf("%s", hex.Dump(bytes[:i]))
+			//}
 		}
-		// Loop back around and add any ACKs before last ACK:
-		for _, k := range naks {
-			if i >= max-2*binary.MaxVarintLen64 {
-				break
-			}
-			// Skip NAKed regions after last ACKed region:
-			if k.endEx >= c.lastAck.start {
-				break
-			}
-			i += binary.PutUvarint(bytes[i:], uint64(k.start))
-			i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
-		}
-		//fmt.Printf("%s", hex.Dump(bytes[:i]))
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, AckDataSection, bytes[:i]))
 	case Done:
 	default:
@@ -472,7 +483,9 @@ func (c *Client) processData(msg UDPMessage) error {
 	if err != nil {
 		return err
 	}
-	_ = n
+	if n < len(data) {
+		fmt.Print("\bNot enough data written! %d < %d\n", n, len(data))
+	}
 
 	c.bytesReceived += int64(len(data))
 
