@@ -173,12 +173,16 @@ func (r *NakRegions) Ack(start, endEx int64) error {
 	}
 
 	//fmt.Printf("(%v %v) vs. (%v %v)\n", a[kWithStart].start, a[kWithEnd].endEx, start, endEx)
-	if a[kWithStart].start == start && a[kWithEnd].endEx == endEx {
+	if start == a[kWithStart].start && endEx == a[kWithEnd].endEx {
 		// [(0 1) (2 20)].ack(0, 1) -> [(2 20)]
 	} else if start > a[kWithStart].start && endEx < a[kWithEnd].endEx {
 		// [(0 1) (2 5) (6 20)].ack(3, 4) -> [(0 1) (2 3) (4 5) (6 20)]
 		o = append(o, Region{a[kWithStart].start, start})
-		o = append(o, Region{endEx, a[kWithEnd].endEx})
+		if endEx > a[kWithEnd].start {
+			o = append(o, Region{endEx, a[kWithEnd].endEx})
+		} else {
+			o = append(o, Region{a[kWithEnd].start, a[kWithEnd].endEx})
+		}
 	} else if start > a[kWithStart].start && endEx == a[kWithEnd].endEx {
 		o = append(o, Region{a[kWithStart].start, start})
 	} else if start == a[kWithStart].start && endEx < a[kWithEnd].endEx {
