@@ -39,6 +39,7 @@ type Server struct {
 	bytesSent     int64
 	bytesSentLast int64
 	timeLast      time.Time
+	lastRate      float64
 }
 
 type ServerOptions struct {
@@ -144,18 +145,16 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) reportBandwidth() {
-	byteCount := s.bytesSent - s.bytesSentLast
 	rightMeow := time.Now()
 	sec := rightMeow.Sub(s.timeLast).Seconds()
+	{
+		byteCount := s.bytesSent - s.bytesSentLast
+		s.lastRate = float64(byteCount) / sec
+		s.bytesSentLast = s.bytesSent
+		s.timeLast = rightMeow
+	}
 
-	// Lock access so NAKs are consistent:
-	s.nextLock.Lock()
-	defer s.nextLock.Unlock()
-
-	fmt.Printf("\b%15s/s        [%s]\r", humanize.IBytes(uint64(float64(byteCount)/sec)), s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
-
-	s.bytesSentLast = s.bytesSent
-	s.timeLast = rightMeow
+	fmt.Printf("\b%9s/s        [%s]\r", humanize.IBytes(uint64(s.lastRate)), s.nakRegions.ASCIIMeterPosition(48, s.nextRegion))
 }
 
 // goroutine to only send data while clients request it:
@@ -167,6 +166,7 @@ func (s *Server) sendDataLoop() {
 		// Send next data region:
 		err := s.sendData()
 		if isENOBUFS(err) {
+			fmt.Print("\r*")
 			time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
 			err = nil
 		}
@@ -216,8 +216,8 @@ func (s *Server) sendData() error {
 		fmt.Printf("m < buf: %d < %d\n", m, len(buf))
 	}
 
-	// ACK sent region internally:
-	//s.nakRegions.Ack(s.nextRegion, s.nextRegion+int64(n))
+	// ACK last send region:
+	s.nakRegions.Ack(s.nextRegion, s.nextRegion+int64(n))
 	s.bytesSent += int64(n)
 
 	// Advance to next region:
@@ -326,26 +326,14 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		section := s.metadataSections[sectionIndex]
 		_, err = s.m.SendControlToClient(controlToClientMessage(hashId, RespondMetadataSection, section))
 	case AckDataSection:
-		// Record known NAKs:
 		s.nextLock.Lock()
 		i := 0
-		start, n := binary.Uvarint(data[i:])
-		i += n
-		endEx, n := binary.Uvarint(data[i:])
-		i += n
-		if i == len(data) {
-			// a client started? NAK all.
-			//s.nakRegions.Nak(0, s.nakRegions.size)
-		}
-		//ack := Region{start: int64(start), endEx: int64(endEx)}
-		//fmt.Printf("\n\back [%15v %15v]\n", ack.start, ack.endEx)
-		//s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
-			start, n = binary.Uvarint(data[i:])
+			start, n := binary.Uvarint(data[i:])
 			i += n
-			endEx, n = binary.Uvarint(data[i:])
+			endEx, n := binary.Uvarint(data[i:])
 			i += n
-			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
+			//fmt.Printf("\back [%15v %15v]\n", start, endEx)
 			s.nakRegions.Ack(int64(start), int64(endEx))
 		}
 		s.nextLock.Unlock()

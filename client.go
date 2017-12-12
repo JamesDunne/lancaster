@@ -297,7 +297,7 @@ func (c *Client) ask() error {
 		byteOrder.PutUint16(req[0:2], uint16(c.nextSectionIndex))
 		_, err = c.m.SendControlToServer(controlToServerMessage(c.hashId, RequestMetadataSection, req))
 	case ExpectDataSections:
-		// Send the last ACKed region to get a new region:
+		// Send a message to get a new region:
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		max := c.m.MaxMessageSize() - (protocolControlPrefixSize)
 		bytes := make([]byte, max)
