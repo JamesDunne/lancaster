@@ -168,7 +168,7 @@ func (s *Server) sendDataLoop() {
 		<-s.allowSend
 
 		// Each client ACK buys some time of data sending:
-		timer := time.After(500 * time.Millisecond)
+		timer := time.After(resendTimeout)
 	sendloop:
 		for {
 			select {

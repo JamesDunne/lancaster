@@ -22,8 +22,6 @@ const (
 	Done
 )
 
-const resendTimeout = 500 * time.Millisecond
-
 type Client struct {
 	m  *Multicast
 	tb *VirtualTarballWriter
