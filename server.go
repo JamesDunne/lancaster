@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"time"
 )
 import "github.com/dustin/go-humanize"
+import "golang.org/x/time/rate"
 
 type empty struct{}
 
@@ -29,6 +31,7 @@ type Server struct {
 	lastClientDataRequest   time.Time
 	packetsSentSinceLastAck int
 	allowSend               chan empty
+	limiter                 *rate.Limiter
 
 	nextLock    sync.Mutex
 	nakRegions  *NakRegions
@@ -57,6 +60,7 @@ func NewServer(m *Multicast, tb *VirtualTarballReader, options ServerOptions) *S
 		options:   options,
 		hashId:    tb.HashId(),
 		allowSend: make(chan empty, 1),
+		limiter:   rate.NewLimiter(rate.Limit((1024*1024*1024)/(m.datagramSize*8)), 20),
 	}
 }
 
@@ -163,17 +167,32 @@ func (s *Server) sendDataLoop() {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
 
-		// Send next data region:
-		err := s.sendData()
-		if isENOBUFS(err) {
-			fmt.Print("\r!")
-			time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
-			err = nil
-			break
-		}
+		// Each client ACK buys some time of data sending:
+		timer := time.After(500 * time.Millisecond)
+	sendloop:
+		for {
+			select {
+			case <-timer:
+				break sendloop
+			default:
+			}
 
-		if err != nil {
-			fmt.Printf("%s\n", err)
+			// Rate limit our sending:
+			s.limiter.Wait(context.Background())
+
+			// Send next data region:
+			err := s.sendData()
+			if isENOBUFS(err) {
+				fmt.Print("\r!")
+				s.limiter.SetLimit(s.limiter.Limit() * 0.85)
+				err = nil
+			} else {
+				s.limiter.SetLimit(s.limiter.Limit() * 1.025)
+			}
+
+			if err != nil {
+				fmt.Printf("%s\n", err)
+			}
 		}
 	}
 }

@@ -467,7 +467,7 @@ func (c *Client) processData(msg UDPMessage) error {
 			c.state = Done
 		}
 
-		return c.ask()
+		return nil
 	}
 
 	// ACK the region:
@@ -492,6 +492,5 @@ func (c *Client) processData(msg UDPMessage) error {
 		c.state = Done
 	}
 
-	// Ask for more data:
-	return c.ask()
+	return nil
 }
