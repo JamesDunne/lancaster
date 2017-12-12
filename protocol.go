@@ -217,8 +217,16 @@ func (r *NakRegions) Nak(start, endEx int64) error {
 		return ErrAckOutOfRange
 	}
 
+	// Shortcut for full replacement:
+	if start == 0 && endEx == r.size {
+		r.naks = []Region{{start, endEx}}
+		return nil
+	}
+
 	a := r.naks
-	// [].nak(0, 10) => [(0, 10)]
+	// []
+	// +{0 10}
+	// =[{0 10}]
 	if len(a) == 0 {
 		r.naks = make([]Region, 1)
 		r.naks[0].start = start
@@ -226,43 +234,75 @@ func (r *NakRegions) Nak(start, endEx int64) error {
 		return nil
 	}
 
-	// [(5, 10)].nak(0,  10) => [(0, 10)]
-	// [(5, 10)].nak(0,  15) => [(0, 15)]
-	// [(5, 10), (15, 20)].nak(2,  12) => [(2, 12), (15, 20)]
-	// [(5, 10), (15, 20)].nak(0,  15) => [(0, 20)]
+	var o []Region
 
-	o := make([]Region, 0, len(a))
-	kWithStart := 0
-	kWithEnd := 0
-	for i := len(a) - 1; i >= 0; i-- {
-		k := &a[i]
-		if endEx >= k.start {
-			kWithEnd = i
-			break
+	if start > a[len(a)-1].endEx {
+		//  [{2 3}]
+		// +{5 19}
+		// =[{2 3} {5 19}]
+		o = make([]Region, 0, len(a)+1)
+		o = append(o, a...)
+		o = append(o, Region{start, endEx})
+	} else if endEx < a[0].start {
+		//  [{5 19}]
+		// +{2 3}
+		// =[{2 3} {5 19}]
+		o = make([]Region, 0, len(a)+1)
+		o = append(o, Region{start, endEx})
+		o = append(o, a...)
+	} else {
+		first := (*Region)(nil)
+		last := (*Region)(nil)
+		for i, _ := range a {
+			k := &a[i]
+			if start <= k.endEx {
+				first = k
+				break
+			}
 		}
-	}
-	for i := 0; i < len(a); i++ {
-		k := &a[i]
-		if start <= k.endEx {
-			kWithStart = i
-			break
+		for i := len(a) - 1; i >= 0; i-- {
+			k := &a[i]
+			if endEx >= k.start {
+				last = k
+				break
+			}
 		}
-	}
-	// Emit unmodified NAK ranges before the requested NAK range:
-	for i := 0; i < kWithStart; i++ {
-		o = append(o, a[i])
-	}
-	// Emit requested NAK range (extended to fit with existing NAKs):
-	if a[kWithStart].start < start {
-		start = a[kWithStart].start
-	}
-	if a[kWithEnd].endEx > endEx {
-		endEx = a[kWithEnd].endEx
-	}
-	o = append(o, Region{start, endEx})
-	// Emit unmodified NAK ranges above requested NAK range:
-	for i := kWithEnd + 1; i < len(a); i++ {
-		o = append(o, a[i])
+
+		// Merge with existing NAKs:
+		o = make([]Region, 0, len(a))
+
+		// Emit first NAKs:
+		i := 0
+		for ; i < len(a); i++ {
+			if &a[i] == first {
+				break
+			}
+			o = append(o, a[i])
+		}
+
+		//  [{2 3} {5 19}]
+		// +{3 5}
+		// =[{2 19}]
+		nak := Region{first.start, last.endEx}
+		if start < nak.start {
+			nak.start = start
+		}
+		if endEx > nak.endEx {
+			nak.endEx = endEx
+		}
+		o = append(o, nak)
+
+		// Omit middle NAKs:
+		for ; i < len(a); i++ {
+			if &a[i] == last {
+				i++
+				break
+			}
+		}
+		// Emit last NAKs:
+		for ; i < len(a); i++ {
+			o = append(o, a[i])
+		}
 	}
 
 	r.naks = o
