@@ -105,11 +105,11 @@ func (r *NakRegions) NextNakRegion(p int64) int64 {
 
 	a := r.naks[:]
 	for i := 0; i < len(a); i++ {
+		if p < a[i].start {
+			continue
+		}
 		if a[i].start <= p && p < a[i].endEx {
 			return p
-		}
-		if p < a[i].start {
-			return a[i].start
 		}
 	}
 
