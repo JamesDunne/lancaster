@@ -159,3 +159,22 @@ func TestNakRegions_Nak5(t *testing.T) {
 	cmp(t, r.Naks(), []Region{{start: 0, endEx: 20}})
 	cmp(t, r.Acks(), []Region{})
 }
+
+// [(5, 10), (15, 20)].nak(0,  20) => [(0, 20)]
+func TestNakRegions_Nak6(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(10, 15)
+	r.Ack(0, 5)
+	r.Nak(0, 20)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 20}})
+	cmp(t, r.Acks(), []Region{})
+}
+
+// [(5, 10), (15, 20)].nak(0,  20) => [(0, 20)]
+func TestNakRegions_Nak7(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 20)
+	r.Nak(19, 20)
+	cmp(t, r.Naks(), []Region{{start: 19, endEx: 20}})
+	cmp(t, r.Acks(), []Region{{start: 0, endEx: 19}})
+}
