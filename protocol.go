@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 )
 
@@ -169,7 +170,12 @@ func (r *NakRegions) Ack(start, endEx int64) error {
 
 	//fmt.Printf("(%v %v) vs. (%v %v)\n", a[kWithStart].start, a[kWithEnd].endEx, start, endEx)
 	if start == a[kWithStart].start && endEx == a[kWithEnd].endEx {
-		// [(0 1) (2 20)].ack(0, 1) -> [(2 20)]
+	} else if start == a[kWithStart].start && endEx < a[kWithEnd].endEx {
+		if endEx > a[kWithEnd].start {
+			o = append(o, Region{endEx, a[kWithEnd].endEx})
+		} else {
+			o = append(o, a[kWithEnd])
+		}
 	} else if start > a[kWithStart].start && endEx < a[kWithEnd].endEx {
 		// [(0 1) (2 5) (6 20)].ack(3, 4) -> [(0 1) (2 3) (4 5) (6 20)]
 		if start < a[kWithStart].endEx {
@@ -183,10 +189,13 @@ func (r *NakRegions) Ack(start, endEx int64) error {
 			o = append(o, a[kWithEnd])
 		}
 	} else if start > a[kWithStart].start && endEx == a[kWithEnd].endEx {
-		o = append(o, Region{a[kWithStart].start, start})
-	} else if start == a[kWithStart].start && endEx < a[kWithEnd].endEx {
-		// [(0 1) (2 5) (6 20)].ack(0, 4) -> [(4 5) (6 20)]
-		o = append(o, Region{endEx, a[kWithEnd].endEx})
+		if start < a[kWithEnd].endEx {
+			o = append(o, Region{a[kWithStart].start, start})
+		} else {
+			o = append(o, a[kWithStart])
+		}
+	} else {
+		fmt.Printf("\bWARNING! %v v %v\n", Region{start: start, endEx: endEx}, Region{a[kWithStart].start, a[kWithEnd].endEx})
 	}
 	// Emit unmodified NAK ranges above requested NAK range:
 	for i := kWithEnd + 1; i < len(a); i++ {
