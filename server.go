@@ -184,6 +184,14 @@ func (s *Server) sendData() error {
 	s.nextLock.Lock()
 	defer s.nextLock.Unlock()
 
+	// Filter out ACKed regions:
+	//fmt.Printf("\r\bold = %15d\n", s.nextRegion)
+	nextNak := s.nakRegions.NextNakRegion(s.nextRegion)
+	if nextNak != -1 {
+		//fmt.Printf("\bnew = %15d\n", nextNak)
+		s.nextRegion = nextNak
+	}
+
 	// Read data from virtual tarball:
 	n := 0
 	buf := make([]byte, s.regionSize)
@@ -216,12 +224,6 @@ func (s *Server) sendData() error {
 	s.nextRegion += int64(n)
 	if s.nextRegion >= s.tb.size {
 		s.nextRegion = 0
-	}
-
-	// Filter out ACKed regions:
-	nextNak := s.nakRegions.NextNakRegion(s.nextRegion)
-	if nextNak != -1 {
-		s.nextRegion = nextNak
 	}
 
 	return nil
@@ -326,17 +328,14 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case AckDataSection:
 		// Record known NAKs:
 		s.nextLock.Lock()
-		if len(data) == 0 {
-			// New client means NAK everything:
-			s.nakRegions.NakAll()
-		}
 		i := 0
 		start, n := binary.Uvarint(data[i:])
 		i += n
 		endEx, n := binary.Uvarint(data[i:])
 		i += n
-		//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
 		ack := Region{start: int64(start), endEx: int64(endEx)}
+		//fmt.Printf("\n\back [%15v %15v]\n", ack.start, ack.endEx)
+		s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
 			start, n = binary.Uvarint(data[i:])
 			i += n
@@ -345,7 +344,6 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
 			s.nakRegions.Nak(int64(start), int64(endEx))
 		}
-		s.nakRegions.Ack(ack.start, ack.endEx)
 		s.nextLock.Unlock()
 
 		// Allow sending data with a non-blocking channel send:

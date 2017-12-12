@@ -303,9 +303,7 @@ func (c *Client) ask() error {
 		bytes := make([]byte, max)
 		// Send as many NAK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
 		i := 0
-		if c.lastAck.start == 0 && c.lastAck.endEx == 0 {
-			// Empty packet means new client.
-		} else {
+		{
 			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
 			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
 			naks := c.nakRegions.Naks()

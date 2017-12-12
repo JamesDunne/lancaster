@@ -94,21 +94,19 @@ func (r *NakRegions) IsAllAcked() bool {
 	return len(r.naks) == 0
 }
 
-func (r *NakRegions) NextNakRegion(start int64) int64 {
+func (r *NakRegions) NextNakRegion(p int64) int64 {
 	if r.IsAllAcked() {
 		return -1
 	}
 
 	a := r.naks[:]
-	for _, k := range a {
-		if start >= k.start && start < k.endEx {
-			return start
+	for i := 0; i < len(a); i++ {
+		if a[i].start <= p && p < a[i].endEx {
+			return p
 		}
-	}
-
-	// Try the first nak region if nothing available after `start`:
-	if len(a) > 0 {
-		return a[0].start
+		if p < a[i].start {
+			return a[i].start
+		}
 	}
 
 	return -1
