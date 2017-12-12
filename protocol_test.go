@@ -254,3 +254,148 @@ func TestNakRegions_Nak8(t *testing.T) {
 	r.Nak(0, 1)
 	cmp(t, r.Acks(), []Region{{start: 19, endEx: 20}})
 }
+
+func TestNakRegions_Nak9(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 1)
+	r.Nak(0, 1)
+	cmp(t, r.Naks(), []Region{{0, 20}})
+}
+
+func TestNakRegions_Nak10(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 1)
+	r.Nak(0, 1)
+	cmp(t, r.Naks(), []Region{{0, 20}})
+	r.Ack(1, 2)
+	cmp(t, r.Naks(), []Region{{0, 1}, {2, 20}})
+	r.Ack(1, 2)
+	cmp(t, r.Naks(), []Region{{0, 1}, {2, 20}})
+	r.Nak(1, 2)
+	cmp(t, r.Naks(), []Region{{0, 20}})
+}
+
+func TestNextNakRegion1(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(1, 2)
+	n := r.NextNakRegion(1)
+	expected := int64(2)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion2(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(1, 2)
+	n := r.NextNakRegion(0)
+	expected := int64(0)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion3(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	n := r.NextNakRegion(0)
+	expected := int64(2)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion4(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	n := r.NextNakRegion(1)
+	expected := int64(2)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion5(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	n := r.NextNakRegion(2)
+	expected := int64(2)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion6(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	n := r.NextNakRegion(3)
+	expected := int64(3)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion7(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	r.Ack(5, 10)
+	n := r.NextNakRegion(3)
+	expected := int64(3)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion8(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	r.Ack(5, 10)
+	n := r.NextNakRegion(4)
+	expected := int64(4)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion9(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	r.Ack(5, 10)
+	n := r.NextNakRegion(5)
+	expected := int64(10)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion10(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	r.Ack(5, 10)
+	n := r.NextNakRegion(9)
+	expected := int64(10)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion11(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 2)
+	r.Ack(5, 20)
+	n := r.NextNakRegion(9)
+	expected := int64(2)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
+
+func TestNextNakRegion12(t *testing.T) {
+	r := NewNakRegions(20)
+	r.Ack(0, 20)
+	n := r.NextNakRegion(0)
+	expected := int64(-1)
+	if n != expected {
+		t.Fatalf("expected %d got %d", expected, n)
+	}
+}
