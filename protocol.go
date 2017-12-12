@@ -122,11 +122,6 @@ func (r *NakRegions) IsAcked(start int64, endEx int64) bool {
 	return true
 }
 
-// [].ack(?, ?) => []
-// [(0, 10)].ack(0, 10) => []
-// [(0, 10)].ack(0,  5) => [(5, 10)]
-// [(0, 10)].ack(5, 10) => [(0,  5)]
-// [(0, 10)].ack(2,  5) => [(0,  2), (5, 10)]
 func (r *NakRegions) Ack(start, endEx int64) error {
 	if start < 0 {
 		return ErrAckOutOfRange
@@ -177,11 +172,15 @@ func (r *NakRegions) Ack(start, endEx int64) error {
 		// [(0 1) (2 20)].ack(0, 1) -> [(2 20)]
 	} else if start > a[kWithStart].start && endEx < a[kWithEnd].endEx {
 		// [(0 1) (2 5) (6 20)].ack(3, 4) -> [(0 1) (2 3) (4 5) (6 20)]
-		o = append(o, Region{a[kWithStart].start, start})
+		if start < a[kWithStart].endEx {
+			o = append(o, Region{a[kWithStart].start, start})
+		} else {
+			o = append(o, a[kWithStart])
+		}
 		if endEx > a[kWithEnd].start {
 			o = append(o, Region{endEx, a[kWithEnd].endEx})
 		} else {
-			o = append(o, Region{a[kWithEnd].start, a[kWithEnd].endEx})
+			o = append(o, a[kWithEnd])
 		}
 	} else if start > a[kWithStart].start && endEx == a[kWithEnd].endEx {
 		o = append(o, Region{a[kWithStart].start, start})

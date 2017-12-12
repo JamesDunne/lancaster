@@ -134,9 +134,9 @@ func TestNakRegions_Ack11(t *testing.T) {
 	r.Ack(1, 15)
 	cmp(t, r.Naks(), []Region{{start: 0, endEx: 1}, {start: 19, endEx: 20}})
 	cmp(t, r.Acks(), []Region{{start: 1, endEx: 19}})
-	//	r.Ack(2, 9)
+	r.Ack(2, 9)
+	cmp(t, r.Naks(), []Region{{start: 0, endEx: 1}, {start: 19, endEx: 20}})
 	//	r.Ack(9, 9)
-	//	cmp(t, r.Naks(), []Region{{start: 0, endEx: 1}, {start: 19, endEx: 20}})
 }
 
 // [(5, 10)].nak(0,  10) => [(0, 10)]
