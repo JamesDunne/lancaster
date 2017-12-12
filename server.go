@@ -354,13 +354,13 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case AckDataSection:
 		s.nextLock.Lock()
 		i := 0
-		var ack Region
-		ack, i = readRegion(data, i)
-		s.nakRegions.Ack(ack.start, ack.endEx)
+		//var ack Region
+		//ack, i = readRegion(data, i)
+		//s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
 			var nak Region
 			nak, i = readRegion(data, i)
-			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
+			//fmt.Printf("\bnak [%15v %15v]\n", nak.start, nak.endEx)
 			s.nakRegions.Nak(nak.start, nak.endEx)
 		}
 		s.nextLock.Unlock()

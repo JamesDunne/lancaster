@@ -302,30 +302,13 @@ func (c *Client) ask() error {
 		// Send as many ACK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
 		i := 0
 		{
-			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
-			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
+			//i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
+			//i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
 			naks := c.nakRegions.Naks()
 			n := 0
-			for j := len(naks) - 1; j >= 0; j-- {
-				if i >= max-2*binary.MaxVarintLen64 {
-					break
-				}
-				// Send most recent state in reverse order starting just before last ACK region:
-				k := &naks[j]
-				if k.endEx > c.lastAck.endEx {
-					continue
-				}
-				i += binary.PutUvarint(bytes[i:], uint64(k.start))
-				i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
-				n++
-			}
 			for _, k := range naks {
 				if i >= max-2*binary.MaxVarintLen64 {
 					break
-				}
-				// Send most recent state starting after last ACK region:
-				if k.start < c.lastAck.start {
-					continue
 				}
 				i += binary.PutUvarint(bytes[i:], uint64(k.start))
 				i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
