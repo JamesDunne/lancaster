@@ -306,14 +306,14 @@ func (c *Client) ask() error {
 		{
 			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
 			i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
-			acks := c.nakRegions.Acks()
+			naks := c.nakRegions.Naks()
 			n := 0
-			for j := len(acks) - 1; j >= 0; j-- {
+			for j := len(naks) - 1; j >= 0; j-- {
 				if i >= max-2*binary.MaxVarintLen64 {
 					break
 				}
 				// Send most recent state in reverse order starting just before last ACK region:
-				k := &acks[j]
+				k := &naks[j]
 				if k.endEx > c.lastAck.endEx {
 					continue
 				}
@@ -321,7 +321,7 @@ func (c *Client) ask() error {
 				i += binary.PutUvarint(bytes[i:], uint64(k.endEx))
 				n++
 			}
-			for _, k := range acks {
+			for _, k := range naks {
 				if i >= max-2*binary.MaxVarintLen64 {
 					break
 				}

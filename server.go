@@ -166,7 +166,7 @@ func (s *Server) sendDataLoop() {
 		// Send next data region:
 		err := s.sendData()
 		if isENOBUFS(err) {
-			fmt.Print("\r*")
+			fmt.Print("\r!")
 			time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
 			err = nil
 		}
@@ -183,6 +183,8 @@ func (s *Server) sendData() error {
 	// Lock access so NAKs are consistent:
 	s.nextLock.Lock()
 	defer s.nextLock.Unlock()
+
+	lastRegion := s.nextRegion
 
 	// Filter out ACKed regions:
 	//fmt.Printf("\r\bold = %15d\n", s.nextRegion)
@@ -201,6 +203,8 @@ func (s *Server) sendData() error {
 		return nil
 	}
 	if err != nil {
+		// Rewind due to error:
+		s.nextRegion = lastRegion
 		return err
 	}
 	buf = buf[:n]
@@ -210,6 +214,8 @@ func (s *Server) sendData() error {
 	dataMsg := dataMessage(s.hashId, s.nextRegion, buf)
 	m, err = s.m.SendData(dataMsg)
 	if err != nil {
+		// Rewind due to error:
+		s.nextRegion = lastRegion
 		return err
 	}
 	if m < len(buf) {
@@ -328,13 +334,14 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case AckDataSection:
 		s.nextLock.Lock()
 		i := 0
+		var ack Region
+		ack, i = readRegion(data, i)
+		s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
-			start, n := binary.Uvarint(data[i:])
-			i += n
-			endEx, n := binary.Uvarint(data[i:])
-			i += n
-			//fmt.Printf("\back [%15v %15v]\n", start, endEx)
-			s.nakRegions.Ack(int64(start), int64(endEx))
+			var nak Region
+			nak, i = readRegion(data, i)
+			//fmt.Printf("\bnak [%15v %15v]\n", start, endEx)
+			s.nakRegions.Nak(nak.start, nak.endEx)
 		}
 		s.nextLock.Unlock()
 
@@ -353,4 +360,12 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	}
 
 	return err
+}
+
+func readRegion(data []byte, i int) (Region, int) {
+	start, n := binary.Uvarint(data[i:])
+	i += n
+	endEx, n := binary.Uvarint(data[i:])
+	i += n
+	return Region{int64(start), int64(endEx)}, i
 }
