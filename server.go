@@ -169,6 +169,7 @@ func (s *Server) sendDataLoop() {
 			fmt.Print("\r!")
 			time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
 			err = nil
+			break
 		}
 
 		if err != nil {
@@ -355,6 +356,7 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	}
 
 	if isENOBUFS(err) {
+		fmt.Print("\r!")
 		time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
 		err = nil
 	}

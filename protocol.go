@@ -17,7 +17,7 @@ const protocolDataMsgPrefixSize = 1 + hashSize + 8
 const metadataSectionMsgSize = 2
 const metadataHeaderMsgSize = 2
 
-const bufferFullTimeoutMilli = 1
+const bufferFullTimeoutMilli = 50
 
 var (
 	ErrMessageTooShort      = errors.New("message too short")

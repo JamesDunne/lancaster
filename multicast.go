@@ -72,8 +72,8 @@ func NewMulticast(controlToServerAddr *net.UDPAddr, netInterface *net.Interface)
 
 	c := &Multicast{
 		netInterface:        netInterface,
-		datagramSize:        65000,
-		bufferPacketCount:   32,
+		datagramSize:        8192,
+		bufferPacketCount:   200,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,
@@ -89,7 +89,7 @@ func (m *Multicast) ListensControlToServer() error {
 		return err
 	}
 	m.controlToServerConn = controlToServerConn
-	err = m.setConnectionProperties(m.controlToServerConn)
+	err = m.setRecvConnectionProperties(m.controlToServerConn)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (m *Multicast) ListensControlToClient() error {
 		return err
 	}
 	m.controlToClientConn = controlToClientConn
-	err = m.setConnectionProperties(m.controlToClientConn)
+	err = m.setRecvConnectionProperties(m.controlToClientConn)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func (m *Multicast) ListensData() error {
 	}
 
 	m.dataConn = dataConn
-	err = m.setConnectionProperties(m.dataConn)
+	err = m.setRecvConnectionProperties(m.dataConn)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (m *Multicast) SendsControlToServer() error {
 		return err
 	}
 	m.controlToServerConn = controlToServerConn
-	err = m.setConnectionProperties(m.controlToServerConn)
+	err = m.setSendConnectionProperties(m.controlToServerConn)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (m *Multicast) SendsControlToClient() error {
 		return err
 	}
 	m.controlToClientConn = controlToClientConn
-	err = m.setConnectionProperties(m.controlToClientConn)
+	err = m.setSendConnectionProperties(m.controlToClientConn)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (m *Multicast) SendsData() error {
 	}
 
 	m.dataConn = dataConn
-	err = m.setConnectionProperties(m.dataConn)
+	err = m.setSendConnectionProperties(m.dataConn)
 	if err != nil {
 		return err
 	}
@@ -194,12 +194,16 @@ func (m *Multicast) Close() error {
 	return nil
 }
 
-func (m *Multicast) setDatagramSize(c *net.UDPConn) error {
-	err := c.SetReadBuffer(m.datagramSize * m.bufferPacketCount)
+func (m *Multicast) setSendDatagramSize(c *net.UDPConn) error {
+	err := c.SetWriteBuffer(m.datagramSize * m.bufferPacketCount)
 	if err != nil {
 		return err
 	}
-	err = c.SetWriteBuffer(m.datagramSize * m.bufferPacketCount)
+	return nil
+}
+
+func (m *Multicast) setRecvDatagramSize(c *net.UDPConn) error {
+	err := c.SetReadBuffer(m.datagramSize * m.bufferPacketCount)
 	if err != nil {
 		return err
 	}
@@ -226,8 +230,21 @@ func (m *Multicast) setLoopback(c *net.UDPConn) error {
 	return nil
 }
 
-func (m *Multicast) setConnectionProperties(c *net.UDPConn) error {
-	if err := m.setDatagramSize(c); err != nil {
+func (m *Multicast) setSendConnectionProperties(c *net.UDPConn) error {
+	if err := m.setSendDatagramSize(c); err != nil {
+		return err
+	}
+	if err := m.setTTL(c); err != nil {
+		return err
+	}
+	if err := m.setLoopback(c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Multicast) setRecvConnectionProperties(c *net.UDPConn) error {
+	if err := m.setRecvDatagramSize(c); err != nil {
 		return err
 	}
 	if err := m.setTTL(c); err != nil {
