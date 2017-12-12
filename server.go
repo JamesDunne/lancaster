@@ -60,7 +60,7 @@ func NewServer(m *Multicast, tb *VirtualTarballReader, options ServerOptions) *S
 		options:   options,
 		hashId:    tb.HashId(),
 		allowSend: make(chan empty, 1),
-		limiter:   rate.NewLimiter(rate.Limit((1024*1024*1024)/(m.datagramSize*8)), 20),
+		limiter:   rate.NewLimiter(rate.Limit(10.0), 1),
 	}
 }
 
@@ -178,7 +178,9 @@ func (s *Server) sendDataLoop() {
 			}
 
 			// Rate limit our sending:
-			s.limiter.Wait(context.Background())
+			if werr := s.limiter.Wait(context.Background()); werr != nil {
+				continue
+			}
 
 			// Send next data region:
 			err := s.sendData()
