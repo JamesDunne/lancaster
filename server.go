@@ -39,6 +39,8 @@ type Server struct {
 	regionSize  uint16
 	regionCount int64
 
+	lastSendTime  time.Time
+	currSendTime  time.Time
 	bytesSent     int64
 	bytesSentLast int64
 	timeLast      time.Time
@@ -163,6 +165,12 @@ func (s *Server) reportBandwidth() {
 
 // goroutine to only send data while clients request it:
 func (s *Server) sendDataLoop() {
+	s.lastSendTime = time.Now()
+	s.currSendTime = s.lastSendTime
+
+	// Adjust rate limiter regularly:
+	rateAdjustTimer := time.Tick(25 * time.Millisecond)
+
 	for {
 		// Wait until we're requested by at least 1 client to send data:
 		<-s.allowSend
@@ -174,6 +182,20 @@ func (s *Server) sendDataLoop() {
 			select {
 			case <-timer:
 				break sendloop
+			case <-rateAdjustTimer:
+				lim := s.limiter.Limit()
+
+				// Calculate current sending interval:
+				sendInterval := s.currSendTime.Sub(s.lastSendTime)
+				rateInterval := time.Duration(float64(time.Second) / float64(lim))
+				if rateInterval > sendInterval {
+					// Increase sending rate by 25%
+					s.limiter.SetLimit(lim * 1.25)
+				} else if rateInterval < sendInterval {
+					// Decrease rate by 5%
+					s.limiter.SetLimit(s.limiter.Limit() * 0.95)
+				}
+				continue
 			default:
 			}
 
@@ -184,12 +206,11 @@ func (s *Server) sendDataLoop() {
 
 			// Send next data region:
 			err := s.sendData()
-			if isENOBUFS(err) {
+			if err == nil {
+
+			} else if isENOBUFS(err) {
 				fmt.Print("\r!")
-				s.limiter.SetLimit(s.limiter.Limit() * 0.85)
 				err = nil
-			} else {
-				s.limiter.SetLimit(s.limiter.Limit() * 1.025)
 			}
 
 			if err != nil {
@@ -240,6 +261,8 @@ func (s *Server) sendData() error {
 		s.nextRegion = lastRegion
 		return err
 	}
+	s.lastSendTime = s.currSendTime
+	s.currSendTime = time.Now()
 	if m < len(buf) {
 		fmt.Printf("m < buf: %d < %d\n", m, len(buf))
 	}
