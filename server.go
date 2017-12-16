@@ -246,74 +246,6 @@ func (s *Server) sendData() error {
 	return nil
 }
 
-func (s *Server) buildMetadata() error {
-	err := error(nil)
-
-	tb := s.tb
-	mdSize := (2 + 8) + (len(tb.files) * (2 + 40 + 8 + 4 + 32))
-	mdBuf := bytes.NewBuffer(make([]byte, 0, mdSize))
-
-	writePrimitive := func(data interface{}) {
-		if err == nil {
-			err = binary.Write(mdBuf, byteOrder, data)
-		}
-	}
-	writeString := func(s string) {
-		writePrimitive(uint16(len(s)))
-		if err == nil {
-			_, err = mdBuf.WriteString(s)
-		}
-	}
-
-	writePrimitive(tb.size)
-	writePrimitive(uint32(len(tb.files)))
-	fmt.Print("Files:\n")
-	for _, f := range tb.files {
-		writeString(f.Path)
-		writePrimitive(f.Size)
-		writePrimitive(f.Mode)
-		writeString(f.SymlinkDestination)
-		fmt.Printf("  %v %15s '%s'\n", f.Mode, humanize.Comma(f.Size), f.Path)
-	}
-	if err != nil {
-		return err
-	}
-
-	// Slice into sections:
-	md := mdBuf.Bytes()
-
-	sectionSize := (s.m.MaxMessageSize() - (protocolControlPrefixSize + metadataSectionMsgSize))
-	sectionCount := len(md) / sectionSize
-	if sectionCount*sectionSize < len(md) {
-		sectionCount++
-	}
-
-	s.metadataSections = make([][]byte, 0, sectionCount)
-	o := 0
-	for n := 0; n < sectionCount; n++ {
-		// Determine end point of metadata slice:
-		l := sectionSize
-		if o+l > len(md) {
-			l = len(md) - o
-		}
-
-		// Prepend section with uint16 of `n`:
-		ms := make([]byte, metadataSectionMsgSize, metadataSectionMsgSize+l)
-		byteOrder.PutUint16(ms[0:2], uint16(n))
-		ms = append(ms, md[o:o+l]...)
-
-		// Add section to list:
-		s.metadataSections = append(s.metadataSections, ms)
-		o += l
-	}
-
-	// Create metadata header to describe how many sections there are:
-	s.metadataHeader = make([]byte, metadataHeaderMsgSize)
-	byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
-
-	return nil
-}
-
 func (s *Server) processControl(ctrl UDPMessage) error {
 	hashId, op, data, err := extractServerMessage(ctrl)
 	if err != nil {
@@ -393,4 +325,72 @@ func readRegion(data []byte, i int) (Region, int) {
 	endEx, n := binary.Uvarint(data[i:])
 	i += n
 	return Region{int64(start), int64(endEx)}, i
+}
+
+func (s *Server) buildMetadata() error {
+	err := error(nil)
+
+	tb := s.tb
+	mdSize := (2 + 8) + (len(tb.files) * (2 + 40 + 8 + 4 + 32))
+	mdBuf := bytes.NewBuffer(make([]byte, 0, mdSize))
+
+	writePrimitive := func(data interface{}) {
+		if err == nil {
+			err = binary.Write(mdBuf, byteOrder, data)
+		}
+	}
+	writeString := func(s string) {
+		writePrimitive(uint16(len(s)))
+		if err == nil {
+			_, err = mdBuf.WriteString(s)
+		}
+	}
+
+	writePrimitive(tb.size)
+	writePrimitive(uint32(len(tb.files)))
+	fmt.Print("Files:\n")
+	for _, f := range tb.files {
+		writeString(f.Path)
+		writePrimitive(f.Size)
+		writePrimitive(f.Mode)
+		writeString(f.SymlinkDestination)
+		fmt.Printf("  %v %15s '%s'\n", f.Mode, humanize.Comma(f.Size), f.Path)
+	}
+	if err != nil {
+		return err
+	}
+
+	// Slice into sections:
+	md := mdBuf.Bytes()
+
+	sectionSize := (s.m.MaxMessageSize() - (protocolControlPrefixSize + metadataSectionMsgSize))
+	sectionCount := len(md) / sectionSize
+	if sectionCount*sectionSize < len(md) {
+		sectionCount++
+	}
+
+	s.metadataSections = make([][]byte, 0, sectionCount)
+	o := 0
+	for n := 0; n < sectionCount; n++ {
+		// Determine end point of metadata slice:
+		l := sectionSize
+		if o+l > len(md) {
+			l = len(md) - o
+		}
+
+		// Prepend section with uint16 of `n`:
+		ms := make([]byte, metadataSectionMsgSize, metadataSectionMsgSize+l)
+		byteOrder.PutUint16(ms[0:2], uint16(n))
+		ms = append(ms, md[o:o+l]...)
+
+		// Add section to list:
+		s.metadataSections = append(s.metadataSections, ms)
+		o += l
+	}
+
+	// Create metadata header to describe how many sections there are:
+	s.metadataHeader = make([]byte, metadataHeaderMsgSize)
+	byteOrder.PutUint16(s.metadataHeader, uint16(sectionCount))
+
+	return nil
 }
