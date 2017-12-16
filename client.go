@@ -299,11 +299,12 @@ func (c *Client) ask() error {
 		//fmt.Printf("ack: [%v %v]\n", c.lastAck.start, c.lastAck.endEx)
 		max := c.m.MaxMessageSize() - (protocolControlPrefixSize)
 		bytes := make([]byte, max)
-		// Send as many ACK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
+		// Send last ACK:
 		i := 0
+		i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
+		i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
+		// Send as many NAK'd regions as we can fit in a message so the server doesnt waste time sending already-ACKed sections:
 		{
-			//i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.start))
-			//i += binary.PutUvarint(bytes[i:], uint64(c.lastAck.endEx))
 			naks := c.nakRegions.Naks()
 			n := 0
 			for _, k := range naks {
@@ -448,7 +449,7 @@ func (c *Client) processData(msg UDPMessage) error {
 			c.state = Done
 		}
 
-		return nil
+		return c.ask()
 	}
 
 	// ACK the region:
@@ -473,5 +474,5 @@ func (c *Client) processData(msg UDPMessage) error {
 		c.state = Done
 	}
 
-	return nil
+	return c.ask()
 }

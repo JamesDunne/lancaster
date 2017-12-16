@@ -75,11 +75,11 @@ func NewMulticast(controlToServerAddr *net.UDPAddr, netInterface *net.Interface)
 
 	c := &Multicast{
 		netInterface:        netInterface,
-		datagramSize:        60000,
+		datagramSize:        65000,
 		sendControlCount:    2,
-		recvControlCount:    8,
+		recvControlCount:    2,
 		sendDataCount:       2,
-		recvDataCount:       8,
+		recvDataCount:       2,
 		ttl:                 8,
 		loopback:            false,
 		controlToServerAddr: controlToServerAddr,

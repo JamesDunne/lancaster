@@ -28,7 +28,6 @@ type Server struct {
 	metadataHeader   []byte
 	metadataSections [][]byte
 
-	lastClientDataRequest   time.Time
 	packetsSentSinceLastAck int
 	allowSend               chan empty
 	limiter                 *rate.Limiter
@@ -40,7 +39,7 @@ type Server struct {
 	regionCount int64
 
 	lastSendTime  time.Time
-	currSendTime  time.Time
+	lastAckTime   time.Time
 	bytesSent     int64
 	bytesSentLast int64
 	timeLast      time.Time
@@ -134,7 +133,7 @@ func (s *Server) Run() error {
 
 			_, err := s.m.SendControlToClient(s.announceMsg)
 			if isENOBUFS(err) {
-				time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+				fmt.Print("\r!")
 				err = nil
 			}
 
@@ -165,57 +164,25 @@ func (s *Server) reportBandwidth() {
 
 // goroutine to only send data while clients request it:
 func (s *Server) sendDataLoop() {
-	s.lastSendTime = time.Now()
-	s.currSendTime = s.lastSendTime
-
-	// Adjust rate limiter regularly:
-	rateAdjustTimer := time.Tick(25 * time.Millisecond)
+	s.lastAckTime = time.Now()
 
 	for {
-		// Wait until we're requested by at least 1 client to send data:
-		<-s.allowSend
+		// Rate limit our sending:
+		if werr := s.limiter.Wait(context.Background()); werr != nil {
+			continue
+		}
 
-		// Each client ACK buys some time of data sending:
-		timer := time.After(resendTimeout)
-	sendloop:
-		for {
-			select {
-			case <-timer:
-				break sendloop
-			case <-rateAdjustTimer:
-				lim := s.limiter.Limit()
+		// Send next data region:
+		err := s.sendData()
+		if err == nil {
 
-				// Calculate current sending interval:
-				sendInterval := s.currSendTime.Sub(s.lastSendTime)
-				rateInterval := time.Duration(float64(time.Second) / float64(lim))
-				if rateInterval > sendInterval {
-					// Increase sending rate by 25%
-					s.limiter.SetLimit(lim * 1.25)
-				} else if rateInterval < sendInterval {
-					// Decrease rate by 5%
-					s.limiter.SetLimit(s.limiter.Limit() * 0.95)
-				}
-				continue
-			default:
-			}
+		} else if isENOBUFS(err) {
+			fmt.Print("\r!")
+			err = nil
+		}
 
-			// Rate limit our sending:
-			if werr := s.limiter.Wait(context.Background()); werr != nil {
-				continue
-			}
-
-			// Send next data region:
-			err := s.sendData()
-			if err == nil {
-
-			} else if isENOBUFS(err) {
-				fmt.Print("\r!")
-				err = nil
-			}
-
-			if err != nil {
-				fmt.Printf("%s\n", err)
-			}
+		if err != nil {
+			fmt.Printf("\b%s\n", err)
 		}
 	}
 }
@@ -261,8 +228,7 @@ func (s *Server) sendData() error {
 		s.nextRegion = lastRegion
 		return err
 	}
-	s.lastSendTime = s.currSendTime
-	s.currSendTime = time.Now()
+	s.lastSendTime = time.Now()
 	if m < len(buf) {
 		fmt.Printf("m < buf: %d < %d\n", m, len(buf))
 	}
@@ -379,9 +345,9 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 	case AckDataSection:
 		s.nextLock.Lock()
 		i := 0
-		//var ack Region
-		//ack, i = readRegion(data, i)
-		//s.nakRegions.Ack(ack.start, ack.endEx)
+		var ack Region
+		ack, i = readRegion(data, i)
+		s.nakRegions.Ack(ack.start, ack.endEx)
 		for i < len(data) {
 			var nak Region
 			nak, i = readRegion(data, i)
@@ -391,11 +357,24 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 		s.nextLock.Unlock()
 
 		// Allow sending data with a non-blocking channel send:
-		s.lastClientDataRequest = time.Now()
-		select {
-		case s.allowSend <- empty{}:
-		default:
+		s.lastAckTime = time.Now()
+		lim := s.limiter.Limit()
+
+		// Calculate current sending interval:
+		ackRate := 1.0 / s.lastAckTime.Sub(s.lastSendTime).Seconds()
+		sendRate := float64(lim)
+		if sendRate < ackRate {
+			// Increase sending rate by 100%
+			s.limiter.SetLimit(lim * 2.0)
+		} else if sendRate > ackRate {
+			// Decrease sending rate by 15%
+			s.limiter.SetLimit(lim * 0.85)
 		}
+
+		//select {
+		//case s.allowSend <- empty{}:
+		//default:
+		//}
 		return nil
 	}
 
