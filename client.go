@@ -326,7 +326,7 @@ func (c *Client) ask() error {
 	}
 
 	if isENOBUFS(err) {
-		time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+		fmt.Print("\r!")
 		err = nil
 	}
 	if err != nil {
