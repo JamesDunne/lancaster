@@ -3,6 +3,7 @@ package main
 
 import (
 	"net"
+	"runtime"
 	"syscall"
 )
 
@@ -262,6 +263,9 @@ func (m *Multicast) MaxMessageSize() int {
 }
 
 func (m *Multicast) receiveLoop(conn *net.UDPConn, ch chan UDPMessage) error {
+	// Lock receive loops to specific CPU core:
+	runtime.LockOSThread()
+
 	// Start a message receive loop:
 	for {
 		buf := make([]byte, m.MaxMessageSize())
