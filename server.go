@@ -164,11 +164,14 @@ func (s *Server) reportBandwidth() {
 
 // goroutine to only send data while clients request it:
 func (s *Server) sendDataLoop() {
-	s.lastAckTime = time.Now()
-
 	for {
 		// Rate limit our sending:
 		if werr := s.limiter.Wait(context.Background()); werr != nil {
+			continue
+		}
+
+		if s.nakRegions.IsAllAcked() {
+			time.Sleep(250 * time.Millisecond)
 			continue
 		}
 
