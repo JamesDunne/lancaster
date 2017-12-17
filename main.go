@@ -286,12 +286,6 @@ func buildTarball(args cli.Args) ([]*TarballFile, error) {
 			}
 		}
 
-		localPath, err := filepath.Abs(localPath)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-			continue
-		}
-
 		stat, err := os.Lstat(localPath)
 		if err != nil {
 			fmt.Printf("%s\n", err)
@@ -300,6 +294,12 @@ func buildTarball(args cli.Args) ([]*TarballFile, error) {
 		}
 
 		if stat.IsDir() {
+			localPath, err := filepath.Abs(localPath)
+			if err != nil {
+				fmt.Printf("%s\n", err)
+				continue
+			}
+
 			// Walk directory tree:
 			filepath.Walk(localPath, func(fullPath string, info os.FileInfo, err error) error {
 				// Skip starting directory entry:
