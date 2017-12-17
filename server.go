@@ -38,6 +38,7 @@ type Server struct {
 	regionSize  uint16
 	regionCount int64
 
+	rate          int
 	lastSendTime  time.Time
 	lastAckTime   time.Time
 	bytesSent     int64
@@ -85,7 +86,8 @@ func (s *Server) Run() error {
 
 	// Initialize with fully ACKed so that resuming clients send NAK state:
 	s.nakRegions = NewNakRegions(s.tb.size)
-	//s.nakRegions.Ack(0, s.tb.size)
+	// ACK all at first so that no data is sent until clients send NAKs:
+	s.nakRegions.Ack(0, s.tb.size)
 
 	// Let Multicast know what channels we're interested in sending/receiving:
 	err = s.m.SendsControlToClient()
@@ -133,6 +135,7 @@ func (s *Server) Run() error {
 
 			_, err := s.m.SendControlToClient(s.announceMsg)
 			if isENOBUFS(err) {
+				s.decreaseRate()
 				fmt.Print("\r!")
 				err = nil
 			}
@@ -164,6 +167,8 @@ func (s *Server) reportBandwidth() {
 
 // goroutine to only send data while clients request it:
 func (s *Server) sendDataLoop() {
+	go s.adjustRateLoop()
+
 	for {
 		// Rate limit our sending:
 		if werr := s.limiter.Wait(context.Background()); werr != nil {
@@ -180,6 +185,7 @@ func (s *Server) sendDataLoop() {
 		if err == nil {
 
 		} else if isENOBUFS(err) {
+			s.decreaseRate()
 			fmt.Print("\r!")
 			err = nil
 		}
@@ -249,6 +255,34 @@ func (s *Server) sendData() error {
 	return nil
 }
 
+func (s *Server) increaseRate() {
+	s.rate++
+}
+
+func (s *Server) decreaseRate() {
+	s.rate--
+}
+
+func (s *Server) adjustRateLoop() {
+	timer := time.Tick(250 * time.Millisecond)
+
+	for {
+		// Wait for timer tick:
+		<-timer
+
+		// Adjust sending rate:
+		lim := s.limiter.Limit()
+		if s.rate > 0 {
+			// Increase sending rate by 25%
+			s.limiter.SetLimit(lim * 1.25)
+		} else if s.rate < 0 {
+			// Decrease sending rate by 15%
+			s.limiter.SetLimit(lim * 0.85)
+		}
+		s.rate = 0
+	}
+}
+
 func (s *Server) processControl(ctrl UDPMessage) error {
 	hashId, op, data, err := extractServerMessage(ctrl)
 	if err != nil {
@@ -289,33 +323,15 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			//fmt.Printf("\bnak [%15v %15v]\n", nak.start, nak.endEx)
 			s.nakRegions.Nak(nak.start, nak.endEx)
 		}
-		s.nextLock.Unlock()
-
-		// Allow sending data with a non-blocking channel send:
 		s.lastAckTime = time.Now()
-		lim := s.limiter.Limit()
-
-		// Calculate current sending interval:
-		ackRate := 1.0 / s.lastAckTime.Sub(s.lastSendTime).Seconds()
-		sendRate := float64(lim)
-		if sendRate < ackRate {
-			// Increase sending rate by 100%
-			s.limiter.SetLimit(lim * 2.0)
-		} else if sendRate > ackRate {
-			// Decrease sending rate by 15%
-			s.limiter.SetLimit(lim * 0.85)
-		}
-
-		//select {
-		//case s.allowSend <- empty{}:
-		//default:
-		//}
+		s.increaseRate()
+		s.nextLock.Unlock()
 		return nil
 	}
 
 	if isENOBUFS(err) {
 		fmt.Print("\r!")
-		time.Sleep(bufferFullTimeoutMilli * time.Millisecond)
+		s.decreaseRate()
 		err = nil
 	}
 
