@@ -408,7 +408,7 @@ func (c *Client) decodeMetadata() error {
 	}
 	c.nakRegions = NewNakRegions(c.tb.size)
 
-	fmt.Print("Receiving files:\n")
+	fmt.Print("\bReceiving files:\n")
 	for _, f := range c.tb.files {
 		fmt.Printf("  %v %15s '%s'\n", f.Mode, humanize.Comma(f.Size), f.Path)
 	}
