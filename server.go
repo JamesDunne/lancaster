@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -167,6 +168,9 @@ func (s *Server) reportBandwidth() {
 
 // goroutine to only send data while clients request it:
 func (s *Server) sendDataLoop() {
+	// Keep goroutine on specific CPU core to maintain cache locality:
+	runtime.LockOSThread()
+
 	go s.adjustRateLoop()
 
 	for {
