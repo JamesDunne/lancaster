@@ -20,7 +20,7 @@ const metadataHeaderMsgSize = 2
 
 //const bufferFullTimeoutMilli = 50
 
-var resendTimeout = 50 * time.Millisecond
+var resendTimeout = 250 * time.Millisecond
 
 var (
 	ErrMessageTooShort      = errors.New("message too short")

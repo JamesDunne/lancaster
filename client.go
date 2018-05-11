@@ -99,6 +99,9 @@ func (c *Client) Run() error {
 	c.startTime = c.lastTime
 	c.lastBytesReceived = 0
 
+	// Send NAKs at a regular rate:
+	c.resendTimer = time.Tick(resendTimeout)
+
 	// Main message loop:
 loop:
 	for {
@@ -449,7 +452,7 @@ func (c *Client) processData(msg UDPMessage) error {
 			c.state = Done
 		}
 
-		return c.ask()
+		return nil
 	}
 
 	// ACK the region:
@@ -474,5 +477,5 @@ func (c *Client) processData(msg UDPMessage) error {
 		c.state = Done
 	}
 
-	return c.ask()
+	return nil
 }

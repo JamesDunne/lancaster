@@ -63,7 +63,7 @@ func NewServer(m *Multicast, tb *VirtualTarballReader, options ServerOptions) *S
 		options:   options,
 		hashId:    tb.HashId(),
 		allowSend: make(chan empty, 1),
-		limiter:   rate.NewLimiter(rate.Limit(10.0), 1),
+		limiter:   rate.NewLimiter(rate.Limit(1200.0), 1),
 	}
 }
 
@@ -136,7 +136,6 @@ func (s *Server) Run() error {
 
 			_, err := s.m.SendControlToClient(s.announceMsg)
 			if isENOBUFS(err) {
-				s.decreaseRate()
 				fmt.Print("\r!")
 				err = nil
 			}
@@ -171,8 +170,6 @@ func (s *Server) sendDataLoop() {
 	// Keep goroutine on specific CPU core to maintain cache locality:
 	runtime.LockOSThread()
 
-	go s.adjustRateLoop()
-
 	for {
 		// Rate limit our sending:
 		if werr := s.limiter.Wait(context.Background()); werr != nil {
@@ -189,7 +186,6 @@ func (s *Server) sendDataLoop() {
 		if err == nil {
 
 		} else if isENOBUFS(err) {
-			s.decreaseRate()
 			fmt.Print("\r!")
 			err = nil
 		}
@@ -259,34 +255,6 @@ func (s *Server) sendData() error {
 	return nil
 }
 
-func (s *Server) increaseRate() {
-	s.rate++
-}
-
-func (s *Server) decreaseRate() {
-	s.rate--
-}
-
-func (s *Server) adjustRateLoop() {
-	timer := time.Tick(250 * time.Millisecond)
-
-	for {
-		// Wait for timer tick:
-		<-timer
-
-		// Adjust sending rate:
-		lim := s.limiter.Limit()
-		if s.rate > 0 {
-			// Increase sending rate by 25%
-			s.limiter.SetLimit(lim * 1.25)
-		} else if s.rate < 0 {
-			// Decrease sending rate by 15%
-			s.limiter.SetLimit(lim * 0.85)
-		}
-		s.rate = 0
-	}
-}
-
 func (s *Server) processControl(ctrl UDPMessage) error {
 	hashId, op, data, err := extractServerMessage(ctrl)
 	if err != nil {
@@ -328,14 +296,12 @@ func (s *Server) processControl(ctrl UDPMessage) error {
 			s.nakRegions.Nak(nak.start, nak.endEx)
 		}
 		s.lastAckTime = time.Now()
-		s.increaseRate()
 		s.nextLock.Unlock()
 		return nil
 	}
 
 	if isENOBUFS(err) {
 		fmt.Print("\r!")
-		s.decreaseRate()
 		err = nil
 	}
 
